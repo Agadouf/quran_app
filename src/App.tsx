@@ -1,15 +1,5 @@
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Link,
-} from "react-router-dom";
-
-import {
-  useState,
-  useRef,
-  useEffect,
-} from "react";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 
 import Home from "./pages/Home";
 import About from "./pages/About";
@@ -17,207 +7,217 @@ import Surah from "./pages/Surah";
 import Favorites from "./pages/Favorites";
 
 function App() {
-  const [currentSurah, setCurrentSurah] =
-    useState<any>(null);
+  // 🎧 Current Surah
+  const [currentSurah, setCurrentSurah] = useState<any>(null);
 
-  const [surahs, setSurahs] =
-    useState<any[]>([]);
+  // 📚 All Surahs
+  const [surahs, setSurahs] = useState<any[]>([]);
 
-  const [favorites, setFavorites] =
-    useState<any[]>(() => {
-      const saved =
-        localStorage.getItem("favorites");
+  // ❤️ Favorites
+  const [favorites, setFavorites] = useState<any[]>(() => {
+    const savedFavorites = localStorage.getItem("favorites");
 
-      return saved ? JSON.parse(saved) : [];
-    });
+    return savedFavorites ? JSON.parse(savedFavorites) : [];
+  });
 
+  // 🌙 Dark mode
   const [dark, setDark] = useState(true);
 
+  // 🌍 Language
   const [lang, setLang] = useState("en");
 
-  const [isPlaying, setIsPlaying] =
-    useState(false);
+  // ▶️ Playing
+  const [isPlaying, setIsPlaying] = useState(false);
 
+  // 🔊 Volume
   const [volume, setVolume] = useState(1);
 
-  const audioRef =
-    useRef<HTMLAudioElement | null>(null);
+  // 🎧 Audio
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // -----------------------------
+  // ==========================================
   // PLAY SURAH
-  // -----------------------------
+  // ==========================================
 
   const playSurah = (surah: any) => {
     setCurrentSurah(surah);
     setIsPlaying(true);
-
-    setTimeout(() => {
-      if (audioRef.current) {
-        audioRef.current.volume = volume;
-
-        audioRef.current
-          .play()
-          .catch((error) => {
-            console.error(
-              "Audio playback failed:",
-              error
-            );
-          });
-      }
-    }, 150);
   };
 
-  // -----------------------------
+  // ==========================================
+  // PLAY AFTER CURRENT SURAH CHANGES
+  // ==========================================
+
+  useEffect(() => {
+    if (!currentSurah || !audioRef.current) return;
+
+    const audio = audioRef.current;
+
+    audio.load();
+
+    audio.volume = volume;
+
+    const playAudio = async () => {
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch (error) {
+        console.error("Audio playback error:", error);
+        setIsPlaying(false);
+      }
+    };
+
+    playAudio();
+  }, [currentSurah]);
+
+  // ==========================================
   // PLAY / PAUSE
-  // -----------------------------
+  // ==========================================
 
-  const togglePlay = () => {
-    if (!audioRef.current) return;
+  const togglePlay = async () => {
+    if (!audioRef.current || !currentSurah) return;
 
-    if (audioRef.current.paused) {
-      audioRef.current
-        .play()
-        .then(() => setIsPlaying(true))
-        .catch(console.error);
-    } else {
-      audioRef.current.pause();
-      setIsPlaying(false);
+    try {
+      if (audioRef.current.paused) {
+        await audioRef.current.play();
+        setIsPlaying(true);
+      } else {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    } catch (error) {
+      console.error("Play error:", error);
     }
   };
 
-  // -----------------------------
-  // NEXT
-  // -----------------------------
+  // ==========================================
+  // NEXT SURAH
+  // ==========================================
 
   const handleNextSurah = () => {
-    if (!currentSurah || !surahs.length)
-      return;
+    if (!currentSurah || surahs.length === 0) return;
 
-    const currentIndex =
-      surahs.findIndex(
-        (s) => s.id === currentSurah.id
-      );
+    const currentIndex = surahs.findIndex(
+      (surah) => surah.id === currentSurah.id
+    );
 
-    if (
-      currentIndex >= 0 &&
-      currentIndex < surahs.length - 1
-    ) {
-      const next =
-        surahs[currentIndex + 1];
+    if (currentIndex === -1) return;
 
-      playSurah(next);
+    const nextSurah = surahs[currentIndex + 1];
+
+    if (nextSurah) {
+      setCurrentSurah(nextSurah);
     } else {
       setIsPlaying(false);
     }
   };
 
-  // -----------------------------
-  // PREVIOUS
-  // -----------------------------
+  // ==========================================
+  // PREVIOUS SURAH
+  // ==========================================
 
   const handlePreviousSurah = () => {
-    if (!currentSurah || !surahs.length)
-      return;
+    if (!currentSurah || surahs.length === 0) return;
 
-    const currentIndex =
-      surahs.findIndex(
-        (s) => s.id === currentSurah.id
-      );
+    const currentIndex = surahs.findIndex(
+      (surah) => surah.id === currentSurah.id
+    );
 
-    if (currentIndex > 0) {
-      const previous =
-        surahs[currentIndex - 1];
+    if (currentIndex === -1) return;
 
-      playSurah(previous);
+    const previousSurah = surahs[currentIndex - 1];
+
+    if (previousSurah) {
+      setCurrentSurah(previousSurah);
     }
   };
 
-  // -----------------------------
+  // ==========================================
   // VOLUME
-  // -----------------------------
+  // ==========================================
 
-  const handleVolume = (
-    e: React.ChangeEvent<HTMLInputElement>
+  const handleVolumeChange = (
+    event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const newVolume =
-      Number(e.target.value);
+    const newVolume = Number(event.target.value);
 
     setVolume(newVolume);
 
     if (audioRef.current) {
-      audioRef.current.volume =
-        newVolume;
+      audioRef.current.volume = newVolume;
     }
   };
 
-  // -----------------------------
-  // AUDIO EVENTS
-  // -----------------------------
+  // ==========================================
+  // AUDIO PLAY
+  // ==========================================
 
-  useEffect(() => {
-    if (!audioRef.current) return;
+  const handleAudioPlay = () => {
+    setIsPlaying(true);
+  };
 
-    audioRef.current.volume = volume;
-  }, [volume]);
+  // ==========================================
+  // AUDIO PAUSE
+  // ==========================================
+
+  const handleAudioPause = () => {
+    setIsPlaying(false);
+  };
+
+  // ==========================================
+  // AUDIO ENDED
+  // ==========================================
+
+  const handleAudioEnded = () => {
+    handleNextSurah();
+  };
 
   return (
     <div
       style={{
-        backgroundColor: dark
-          ? "#0f172a"
-          : "#ffffff",
-
+        backgroundColor: dark ? "#0f172a" : "#ffffff",
         minHeight: "100vh",
-
-        color: dark
-          ? "#ffffff"
-          : "#111827",
-
+        color: dark ? "#ffffff" : "#111827",
         transition: "0.3s",
       }}
     >
       <BrowserRouter>
-
-        {/* =========================
+        {/* =====================================
             NAVBAR
-        ========================= */}
+        ===================================== */}
 
         <nav
           style={{
             display: "flex",
-            justifyContent:
-              "space-between",
+            justifyContent: "space-between",
             alignItems: "center",
-            gap: "15px",
             padding: "12px 20px",
-            background: dark
-              ? "#1e293b"
-              : "#f1f5f9",
+            background: dark ? "#1e293b" : "#f1f5f9",
+            gap: "15px",
             flexWrap: "wrap",
           }}
         >
+          {/* Logo */}
+
           <h2 style={{ margin: 0 }}>
             📖{" "}
             {lang === "ar"
-              ? "القرآن الكريم"
+              ? "القرآن"
               : "Quran"}
           </h2>
+
+          {/* Links */}
 
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "8px",
+              gap: "5px",
               flexWrap: "wrap",
             }}
           >
-            <Link
-              to="/"
-              style={styles.link}
-            >
-              {lang === "ar"
-                ? "الرئيسية"
-                : "Home"}
+            <Link to="/" style={styles.link}>
+              {lang === "ar" ? "الرئيسية" : "Home"}
             </Link>
 
             <Link
@@ -233,51 +233,47 @@ function App() {
               to="/about"
               style={styles.link}
             >
-              {lang === "ar"
-                ? "حول"
-                : "About"}
+              {lang === "ar" ? "حول" : "About"}
             </Link>
 
+            {/* Language */}
+
             <button
-              style={styles.navButton}
+              style={styles.button}
               onClick={() =>
                 setLang(
-                  lang === "en"
-                    ? "ar"
-                    : "en"
+                  lang === "en" ? "ar" : "en"
                 )
               }
             >
-              {lang === "en"
-                ? "AR"
-                : "EN"}
+              {lang === "en" ? "AR" : "EN"}
             </button>
 
+            {/* Dark Mode */}
+
             <button
-              style={styles.navButton}
-              onClick={() =>
-                setDark(!dark)
-              }
+              style={styles.button}
+              onClick={() => setDark(!dark)}
             >
-              {dark ? "☀️" : "🌙"}
+              {dark ? "🌞" : "🌙"}
             </button>
           </div>
         </nav>
 
-        {/* =========================
-            CONTENT
-        ========================= */}
+        {/* =====================================
+            PAGES
+        ===================================== */}
 
         <div
           style={{
             padding: "20px",
-            paddingBottom:
-              currentSurah
-                ? "150px"
-                : "40px",
+            paddingBottom: currentSurah
+              ? "150px"
+              : "100px",
           }}
         >
           <Routes>
+            {/* Home */}
 
             <Route
               path="/"
@@ -288,27 +284,27 @@ function App() {
                   dark={dark}
                   setSurahs={setSurahs}
                   favorites={favorites}
-                  setFavorites={
-                    setFavorites
-                  }
+                  setFavorites={setFavorites}
                 />
               }
             />
+
+            {/* Favorites */}
 
             <Route
               path="/favorites"
               element={
                 <Favorites
                   favorites={favorites}
-                  setFavorites={
-                    setFavorites
-                  }
+                  setFavorites={setFavorites}
                   playSurah={playSurah}
                   dark={dark}
                   lang={lang}
                 />
               }
             />
+
+            {/* About */}
 
             <Route
               path="/about"
@@ -320,6 +316,8 @@ function App() {
               }
             />
 
+            {/* Surah */}
+
             <Route
               path="/surah/:id"
               element={
@@ -330,61 +328,49 @@ function App() {
                 />
               }
             />
-
           </Routes>
         </div>
 
-        {/* =========================
-            CUSTOM AUDIO PLAYER
-        ========================= */}
+        {/* =====================================
+            CUSTOM GLOBAL PLAYER
+        ===================================== */}
 
         {currentSurah && (
           <div
             style={{
               ...styles.player,
               background: dark
-                ? "#172033"
+                ? "#1e293b"
                 : "#ffffff",
               borderTop: dark
                 ? "1px solid #334155"
                 : "1px solid #e2e8f0",
             }}
           >
-
-            {/* Hidden audio element */}
+            {/* Hidden / Native Audio */}
 
             <audio
               ref={audioRef}
               src={currentSurah.audio_url}
-              onPlay={() =>
-                setIsPlaying(true)
-              }
-              onPause={() =>
-                setIsPlaying(false)
-              }
-              onEnded={
-                handleNextSurah
-              }
+              onPlay={handleAudioPlay}
+              onPause={handleAudioPause}
+              onEnded={handleAudioEnded}
               preload="metadata"
             />
 
-            {/* Current Surah */}
+            {/* =================================
+                SURAH INFORMATION
+            ================================= */}
 
-            <div style={styles.currentInfo}>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "#22c55e",
-                  fontWeight: 700,
-                }}
-              >
-                🎙️ AL-ZAIN MUHAMMAD AHMED
+            <div style={styles.playerInfo}>
+              <div style={styles.reciter}>
+                🎙️ Sheikh Al-Zain Muhammad Ahmed
               </div>
 
               <div
                 style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
+                  fontSize: "20px",
+                  fontWeight: "bold",
                   direction: "rtl",
                 }}
               >
@@ -393,33 +379,36 @@ function App() {
 
               <div
                 style={{
-                  fontSize: "12px",
+                  fontSize: "13px",
                   opacity: 0.7,
                 }}
               >
                 {currentSurah.id}.{" "}
-                {currentSurah.english_name}
-                {" • "}
-                {currentSurah.ayah_count ||
-                  "—"}{" "}
-                Ayahs
+                {currentSurah.english_name ||
+                  currentSurah.name}
+                {currentSurah.ayah_count
+                  ? ` • ${currentSurah.ayah_count} Ayahs`
+                  : ""}
               </div>
             </div>
 
-            {/* Controls */}
+            {/* =================================
+                CONTROLS
+            ================================= */}
 
             <div style={styles.controls}>
-
               {/* Previous */}
 
               <button
-                style={styles.controlButton}
-                onClick={
-                  handlePreviousSurah
-                }
-                disabled={
-                  currentSurah.id === 1
-                }
+                style={{
+                  ...styles.controlButton,
+                  opacity:
+                    currentSurah.id === 1
+                      ? 0.4
+                      : 1,
+                }}
+                disabled={currentSurah.id === 1}
+                onClick={handlePreviousSurah}
                 title="Previous Surah"
               >
                 ⏮️
@@ -428,45 +417,40 @@ function App() {
               {/* Play / Pause */}
 
               <button
-                style={
-                  styles.mainControl
-                }
+                style={styles.playButton}
                 onClick={togglePlay}
                 title={
-                  isPlaying
-                    ? "Pause"
-                    : "Play"
+                  isPlaying ? "Pause" : "Play"
                 }
               >
-                {isPlaying
-                  ? "⏸️"
-                  : "▶️"}
+                {isPlaying ? "⏸️" : "▶️"}
               </button>
 
               {/* Next */}
 
               <button
-                style={styles.controlButton}
-                onClick={
-                  handleNextSurah
-                }
-                disabled={
-                  currentSurah.id === 114
-                }
+                style={{
+                  ...styles.controlButton,
+                  opacity:
+                    currentSurah.id === 114
+                      ? 0.4
+                      : 1,
+                }}
+                disabled={currentSurah.id === 114}
+                onClick={handleNextSurah}
                 title="Next Surah"
               >
                 ⏭️
               </button>
-
             </div>
 
-            {/* Volume */}
+            {/* =================================
+                VOLUME
+            ================================= */}
 
-            <div style={styles.volume}>
-              <span>
-                {volume === 0
-                  ? "🔇"
-                  : "🔊"}
+            <div style={styles.volumeContainer}>
+              <span style={{ fontSize: "18px" }}>
+                {volume === 0 ? "🔇" : "🔊"}
               </span>
 
               <input
@@ -475,15 +459,12 @@ function App() {
                 max="1"
                 step="0.01"
                 value={volume}
-                onChange={
-                  handleVolume
-                }
+                onChange={handleVolumeChange}
+                style={styles.volume}
               />
             </div>
-
           </div>
         )}
-
       </BrowserRouter>
     </div>
   );
@@ -491,46 +472,57 @@ function App() {
 
 export default App;
 
-const styles: any = {
+/* =====================================================
+   STYLES
+===================================================== */
+
+const styles = {
   link: {
     margin: "0 5px",
     textDecoration: "none",
     color: "inherit",
-    fontWeight: 600,
-    padding: "7px 10px",
+    fontWeight: 500,
+    padding: "6px 8px",
   },
 
-  navButton: {
-    padding: "7px 10px",
-    borderRadius: "8px",
+  button: {
+    marginLeft: "5px",
+    padding: "6px 10px",
+    borderRadius: "6px",
     border: "none",
     background: "#22c55e",
-    color: "#ffffff",
+    color: "white",
     cursor: "pointer",
-    fontWeight: 700,
   },
 
   player: {
-    position: "fixed",
+    position: "fixed" as const,
     bottom: 0,
     left: 0,
     right: 0,
     zIndex: 9999,
-    minHeight: "80px",
-    padding: "12px 18px",
+    minHeight: "82px",
+    padding: "10px 20px",
     display: "flex",
-    alignItems: "center",
     justifyContent: "space-between",
-    gap: "15px",
-    boxSizing: "border-box",
+    alignItems: "center",
+    gap: "20px",
+    boxSizing: "border-box" as const,
     boxShadow:
-      "0 -8px 30px rgba(0,0,0,0.18)",
-    flexWrap: "wrap",
+      "0 -5px 20px rgba(0,0,0,0.2)",
+    flexWrap: "wrap" as const,
   },
 
-  currentInfo: {
-    minWidth: "200px",
+  playerInfo: {
     flex: 1,
+    minWidth: "220px",
+  },
+
+  reciter: {
+    color: "#22c55e",
+    fontSize: "12px",
+    fontWeight: "bold",
+    marginBottom: "3px",
   },
 
   controls: {
@@ -545,13 +537,13 @@ const styles: any = {
     height: "44px",
     border: "none",
     borderRadius: "50%",
-    background: "#334155",
+    background: "#475569",
     color: "#ffffff",
     cursor: "pointer",
     fontSize: "17px",
   },
 
-  mainControl: {
+  playButton: {
     width: "52px",
     height: "52px",
     border: "none",
@@ -562,10 +554,15 @@ const styles: any = {
     fontSize: "20px",
   },
 
-  volume: {
+  volumeContainer: {
     display: "flex",
     alignItems: "center",
     gap: "8px",
-    minWidth: "130px",
+    minWidth: "140px",
+  },
+
+  volume: {
+    width: "100px",
+    cursor: "pointer",
   },
 };

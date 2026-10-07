@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-// @ts-ignore
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
 import { motion } from "framer-motion";
 
@@ -12,10 +11,9 @@ export default function Home({
   setFavorites,
 }: any) {
   const [localSurahs, setLocalSurahs] = useState<any[]>([]);
-
   const [loading, setLoading] = useState(true);
-
   const [errorMessage, setErrorMessage] = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     getSurahs();
@@ -31,76 +29,51 @@ export default function Home({
         .select("*")
         .order("id", { ascending: true });
 
-      console.log("Supabase Surahs:", data);
-      console.log("Supabase Error:", error);
-
       if (error) {
-        console.error("Failed to load Surahs:", error);
-
-        setErrorMessage(
-          error.message || "Failed to load Surahs."
-        );
-
+        console.error(error);
+        setErrorMessage(error.message);
         setSurahs([]);
         setLocalSurahs([]);
-
         return;
       }
 
-      if (!data || data.length === 0) {
-        console.warn("Supabase returned zero Surahs.");
-
-        setErrorMessage(
-          lang === "ar"
-            ? "لم يتم العثور على السور."
-            : "No Surahs were found."
-        );
-
-        setSurahs([]);
-        setLocalSurahs([]);
-
-        return;
-      }
-
-      setSurahs(data);
-
-      setLocalSurahs(data);
-
+      setSurahs(data || []);
+      setLocalSurahs(data || []);
     } catch (error: any) {
-      console.error(
-        "Unexpected error loading Surahs:",
-        error
-      );
-
       setErrorMessage(
-        error?.message ||
-          "Unexpected error loading Surahs."
+        error?.message || "Failed to load Surahs."
       );
-
-      setSurahs([]);
-      setLocalSurahs([]);
-
     } finally {
       setLoading(false);
     }
   }
 
+  const filteredSurahs = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-  // ❤️ Favorite
+    if (!query) return localSurahs;
+
+    return localSurahs.filter((surah) => {
+      return (
+        String(surah.id).includes(query) ||
+        surah.name?.toLowerCase().includes(query) ||
+        surah.english_name
+          ?.toLowerCase()
+          .includes(query)
+      );
+    });
+  }, [localSurahs, search]);
+
   const toggleFavorite = (surah: any) => {
     const exists = favorites.some(
       (s: any) => s.id === surah.id
     );
 
-    let updated;
-
-    if (exists) {
-      updated = favorites.filter(
-        (s: any) => s.id !== surah.id
-      );
-    } else {
-      updated = [...favorites, surah];
-    }
+    const updated = exists
+      ? favorites.filter(
+          (s: any) => s.id !== surah.id
+        )
+      : [...favorites, surah];
 
     setFavorites(updated);
 
@@ -110,399 +83,345 @@ export default function Home({
     );
   };
 
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.6 }}
       style={styles.container}
     >
+      {/* Header */}
+      <div style={styles.header}>
+        <h1 style={styles.title(dark)}>
+          {lang === "ar" ? "سور القرآن الكريم" : "Quran Surahs"}
+        </h1>
 
-      {/* Title */}
+        <p style={styles.subtitle(dark)}>
+          {lang === "ar"
+            ? "استمع إلى القرآن الكريم بصوت الشيخ الزين محمد أحمد"
+            : "Listen to the Holy Quran recited by Sheikh Al-Zain Muhammad Ahmed"}
+        </p>
+      </div>
 
-      <motion.h1
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        style={styles.title(dark)}
-      >
-        {lang === "ar"
-          ? "السور"
-          : "Surahs"}
-      </motion.h1>
+      {/* Search */}
+      <div style={styles.searchWrapper}>
+        <span style={styles.searchIcon}>🔎</span>
 
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={
+            lang === "ar"
+              ? "ابحث عن سورة..."
+              : "Search Surah by name or number..."
+          }
+          style={styles.searchInput(dark)}
+          dir={lang === "ar" ? "rtl" : "ltr"}
+        />
+      </div>
 
-      {/* Loading */}
-
-      {loading && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          style={styles.loading}
-        >
-          ⏳ Loading Surahs...
-        </motion.p>
+      {/* Counter */}
+      {!loading && (
+        <div style={styles.counter(dark)}>
+          {filteredSurahs.length} / 114{" "}
+          {lang === "ar" ? "سورة" : "Surahs"}
+        </div>
       )}
 
+      {/* Loading */}
+      {loading && (
+        <div style={styles.message(dark)}>
+          ⏳ {lang === "ar"
+            ? "جاري تحميل السور..."
+            : "Loading Surahs..."}
+        </div>
+      )}
 
       {/* Error */}
-
       {!loading && errorMessage && (
         <div style={styles.error}>
-          <div style={styles.errorIcon}>
-            ⚠️
-          </div>
+          <h3>⚠️ Unable to load Surahs</h3>
 
-          <h3>
-            {lang === "ar"
-              ? "تعذر تحميل السور"
-              : "Unable to load Surahs"}
-          </h3>
-
-          <p>
-            {errorMessage}
-          </p>
+          <p>{errorMessage}</p>
 
           <button
-            style={styles.retryButton}
             onClick={getSurahs}
+            style={styles.retryButton}
           >
-            🔄{" "}
-            {lang === "ar"
-              ? "إعادة المحاولة"
-              : "Try Again"}
+            🔄 Try Again
           </button>
         </div>
       )}
 
-
-      {/* Empty */}
-
+      {/* Empty search */}
       {!loading &&
         !errorMessage &&
-        localSurahs.length === 0 && (
-          <div style={styles.empty}>
-            <div style={styles.emptyIcon}>
-              📖
-            </div>
-
-            <h3>
-              {lang === "ar"
-                ? "لا توجد سور"
-                : "No Surahs"}
-            </h3>
-
-            <p>
-              {lang === "ar"
-                ? "لم يتم العثور على أي سورة."
-                : "No Surahs were found in the database."}
-            </p>
+        filteredSurahs.length === 0 && (
+          <div style={styles.message(dark)}>
+            🔎{" "}
+            {lang === "ar"
+              ? "لم يتم العثور على سورة."
+              : "No Surah found."}
           </div>
         )}
 
+      {/* Surah Grid */}
+      {!loading && filteredSurahs.length > 0 && (
+        <div style={styles.grid}>
+          {filteredSurahs.map((surah, index) => {
+            const isFavorite = favorites.some(
+              (s: any) => s.id === surah.id
+            );
 
-      {/* Surahs */}
+            return (
+              <motion.div
+                key={surah.id}
+                style={styles.card(dark)}
+                initial={{
+                  opacity: 0,
+                  y: 20,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                transition={{
+                  delay: Math.min(index * 0.02, 0.4),
+                }}
+                whileHover={{
+                  y: -5,
+                  boxShadow:
+                    "0 15px 30px rgba(0,0,0,0.25)",
+                }}
+              >
+                {/* Number */}
+                <div style={styles.number}>
+                  {surah.id}
+                </div>
 
-      {!loading &&
-        localSurahs.length > 0 && (
+                {/* Arabic */}
+                <h2 style={styles.arabicName}>
+                  {surah.name}
+                </h2>
 
-          <div style={styles.grid}>
+                {/* English */}
+                <div style={styles.englishName}>
+                  {surah.english_name}
+                </div>
 
-            {localSurahs.map((surah, i) => {
+                {/* Ayahs */}
+                <div style={styles.info(dark)}>
+                  📖 {surah.ayah_count || "—"}{" "}
+                  {lang === "ar" ? "آية" : "Ayahs"}
+                </div>
 
-              const isFavorite =
-                favorites.some(
-                  (s: any) =>
-                    s.id === surah.id
-                );
+                {/* Reciter */}
+                <div style={styles.reciter}>
+                  🎙️ Al-Zain Muhammad Ahmed
+                </div>
 
-              return (
-
-                <motion.div
-                  key={surah.id}
-                  style={styles.card(dark)}
-
-                  initial={{
-                    opacity: 0,
-                    y: 30,
-                  }}
-
-                  animate={{
-                    opacity: 1,
-                    y: 0,
-                  }}
-
-                  transition={{
-                    delay: i * 0.05,
-                  }}
-
-                  whileHover={{
-                    scale: 1.05,
-
-                    boxShadow:
-                      "0px 10px 25px rgba(0,0,0,0.3)",
-                  }}
-                >
-
-                  <h3
-                    style={{
-                      marginBottom: "15px",
-                    }}
+                {/* Buttons */}
+                <div style={styles.buttons}>
+                  <button
+                    onClick={() => playSurah(surah)}
+                    style={styles.playButton}
+                    title="Play Surah"
                   >
-                    {surah.name}
-                  </h3>
+                    ▶️
+                  </button>
 
-
-                  {/* Buttons */}
-
-                  <div
+                  <button
+                    onClick={() =>
+                      toggleFavorite(surah)
+                    }
                     style={{
-                      display: "flex",
-
-                      justifyContent:
-                        "center",
-
-                      gap: "10px",
+                      ...styles.favoriteButton,
+                      background: isFavorite
+                        ? "#ef4444"
+                        : "#475569",
                     }}
+                    title="Favorite"
                   >
-
-                    {/* Play */}
-
-                    <motion.button
-                      style={styles.button}
-
-                      whileTap={{
-                        scale: 0.9,
-                      }}
-
-                      whileHover={{
-                        scale: 1.1,
-                      }}
-
-                      onClick={() =>
-                        playSurah(surah)
-                      }
-                    >
-                      ▶️
-                    </motion.button>
-
-
-                    {/* Favorite */}
-
-                    <motion.button
-                      style={{
-                        ...styles.favoriteButton,
-
-                        background:
-                          isFavorite
-                            ? "#ef4444"
-                            : "#475569",
-                      }}
-
-                      whileTap={{
-                        scale: 1.3,
-                      }}
-
-                      whileHover={{
-                        scale: 1.1,
-                      }}
-
-                      onClick={() =>
-                        toggleFavorite(surah)
-                      }
-                    >
-                      {isFavorite
-                        ? "❤️"
-                        : "🤍"}
-                    </motion.button>
-
-                  </div>
-
-                </motion.div>
-              );
-            })}
-
-          </div>
-        )}
-
+                    {isFavorite ? "❤️" : "🤍"}
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
     </motion.div>
   );
 }
 
-
-/* =====================================================
-   STYLES
-===================================================== */
-
-const styles = {
-
+const styles: any = {
   container: {
+    maxWidth: "1400px",
+    margin: "0 auto",
     padding: "20px",
   },
 
+  header: {
+    textAlign: "center",
+    marginBottom: "25px",
+  },
 
   title: (dark: boolean) => ({
-    textAlign: "center" as const,
-
-    marginBottom: "25px",
-
-    color: dark
-      ? "#ffffff"
-      : "#111827",
-
-    fontSize: "34px",
-
-    fontWeight: "bold",
+    color: dark ? "#ffffff" : "#111827",
+    fontSize: "clamp(28px, 5vw, 42px)",
+    marginBottom: "8px",
+    fontWeight: 800,
   }),
 
-
-  loading: {
-    textAlign: "center" as const,
-
-    fontSize: "18px",
-
-    marginTop: "30px",
-
-    color: "#94a3b8",
-  },
-
-
-  error: {
-    maxWidth: "600px",
-
-    margin: "40px auto",
-
-    padding: "30px",
-
-    textAlign: "center" as const,
-
-    borderRadius: "16px",
-
-    background: "#7f1d1d",
-
-    border:
-      "1px solid #ef4444",
-
-    color: "#ffffff",
-  },
-
-
-  errorIcon: {
-    fontSize: "40px",
-
-    marginBottom: "10px",
-  },
-
-
-  retryButton: {
-    marginTop: "20px",
-
-    padding: "10px 18px",
-
-    border: "none",
-
-    borderRadius: "10px",
-
-    background: "#22c55e",
-
-    color: "#ffffff",
-
-    cursor: "pointer",
-
-    fontWeight: "bold",
-
+  subtitle: (dark: boolean) => ({
+    color: dark ? "#94a3b8" : "#64748b",
     fontSize: "15px",
+    lineHeight: 1.6,
+  }),
+
+  searchWrapper: {
+    maxWidth: "650px",
+    margin: "0 auto 20px",
+    position: "relative",
   },
 
-
-  empty: {
-    maxWidth: "600px",
-
-    margin: "40px auto",
-
-    padding: "30px",
-
-    textAlign: "center" as const,
-
-    borderRadius: "16px",
-
-    background: "#1e293b",
-
-    color: "#ffffff",
+  searchIcon: {
+    position: "absolute",
+    left: "15px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    fontSize: "18px",
   },
 
+  searchInput: (dark: boolean) => ({
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "14px 18px 14px 45px",
+    borderRadius: "14px",
+    border: dark
+      ? "1px solid #334155"
+      : "1px solid #cbd5e1",
+    background: dark ? "#1e293b" : "#ffffff",
+    color: dark ? "#ffffff" : "#111827",
+    fontSize: "16px",
+    outline: "none",
+  }),
 
-  emptyIcon: {
-    fontSize: "45px",
-
-    marginBottom: "10px",
-  },
-
+  counter: (dark: boolean) => ({
+    textAlign: "center",
+    color: dark ? "#94a3b8" : "#64748b",
+    marginBottom: "20px",
+    fontSize: "14px",
+  }),
 
   grid: {
     display: "grid",
-
     gridTemplateColumns:
-      "repeat(auto-fit, minmax(200px, 1fr))",
-
+      "repeat(auto-fill, minmax(220px, 1fr))",
     gap: "18px",
   },
 
-
   card: (dark: boolean) => ({
-
-    background: dark
-      ? "#1e293b"
-      : "#f8fafc",
-
-    color: dark
-      ? "#e2e8f0"
-      : "#0f172a",
-
-    padding: "20px",
-
-    borderRadius: "16px",
-
-    textAlign: "center" as const,
-
-    transition: "0.3s",
-
+    position: "relative",
+    background: dark ? "#1e293b" : "#ffffff",
+    color: dark ? "#ffffff" : "#111827",
     border: dark
       ? "1px solid #334155"
       : "1px solid #e2e8f0",
+    borderRadius: "18px",
+    padding: "22px",
+    textAlign: "center",
+    transition: "0.25s",
+    overflow: "hidden",
   }),
 
-
-  button: {
-
-    padding: "10px 14px",
-
-    borderRadius: "10px",
-
-    border: "none",
-
+  number: {
+    width: "38px",
+    height: "38px",
+    margin: "0 auto 12px",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     background: "#22c55e",
-
-    color: "white",
-
-    cursor: "pointer",
-
-    fontSize: "16px",
+    color: "#ffffff",
+    fontWeight: 800,
   },
 
+  arabicName: {
+    fontSize: "27px",
+    margin: "5px 0",
+    direction: "rtl",
+    fontFamily: "serif",
+  },
+
+  englishName: {
+    fontSize: "15px",
+    fontWeight: 600,
+    opacity: 0.75,
+    marginBottom: "12px",
+  },
+
+  info: (dark: boolean) => ({
+    color: dark ? "#cbd5e1" : "#475569",
+    fontSize: "14px",
+    marginBottom: "8px",
+  }),
+
+  reciter: {
+    color: "#22c55e",
+    fontSize: "12px",
+    marginBottom: "18px",
+    fontWeight: 600,
+  },
+
+  buttons: {
+    display: "flex",
+    justifyContent: "center",
+    gap: "10px",
+  },
+
+  playButton: {
+    border: "none",
+    borderRadius: "10px",
+    padding: "11px 18px",
+    background: "#22c55e",
+    color: "#ffffff",
+    cursor: "pointer",
+    fontSize: "17px",
+  },
 
   favoriteButton: {
-
-    padding: "10px 14px",
-
-    borderRadius: "10px",
-
     border: "none",
-
-    color: "white",
-
+    borderRadius: "10px",
+    padding: "11px 15px",
+    color: "#ffffff",
     cursor: "pointer",
+    fontSize: "17px",
+  },
 
-    fontSize: "16px",
+  message: (dark: boolean) => ({
+    textAlign: "center",
+    padding: "50px 20px",
+    color: dark ? "#cbd5e1" : "#475569",
+  }),
+
+  error: {
+    maxWidth: "600px",
+    margin: "30px auto",
+    padding: "25px",
+    textAlign: "center",
+    borderRadius: "15px",
+    background: "#7f1d1d",
+    color: "#ffffff",
+  },
+
+  retryButton: {
+    padding: "10px 18px",
+    border: "none",
+    borderRadius: "10px",
+    background: "#22c55e",
+    color: "#ffffff",
+    cursor: "pointer",
   },
 };

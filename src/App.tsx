@@ -16,7 +16,6 @@ function App() {
   // ❤️ Favorites
   const [favorites, setFavorites] = useState<any[]>(() => {
     const savedFavorites = localStorage.getItem("favorites");
-
     return savedFavorites ? JSON.parse(savedFavorites) : [];
   });
 
@@ -32,8 +31,53 @@ function App() {
   // 🔊 Volume
   const [volume, setVolume] = useState(1);
 
+  // 📲 PWA Install
+  const [installPrompt, setInstallPrompt] =
+    useState<any>(null);
+
   // 🎧 Audio
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // ==========================================
+  // PWA INSTALL PROMPT
+  // ==========================================
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+
+      setInstallPrompt(event);
+    };
+
+    window.addEventListener(
+      "beforeinstallprompt",
+      handleBeforeInstallPrompt
+    );
+
+    return () => {
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt
+      );
+    };
+  }, []);
+
+  // ==========================================
+  // INSTALL APP
+  // ==========================================
+
+  const installApp = async () => {
+    if (!installPrompt) return;
+
+    installPrompt.prompt();
+
+    const { outcome } =
+      await installPrompt.userChoice;
+
+    if (outcome === "accepted") {
+      setInstallPrompt(null);
+    }
+  };
 
   // ==========================================
   // PLAY SURAH
@@ -62,7 +106,10 @@ function App() {
         await audio.play();
         setIsPlaying(true);
       } catch (error) {
-        console.error("Audio playback error:", error);
+        console.error(
+          "Audio playback error:",
+          error
+        );
         setIsPlaying(false);
       }
     };
@@ -175,13 +222,18 @@ function App() {
   return (
     <div
       style={{
-        backgroundColor: dark ? "#0f172a" : "#ffffff",
+        backgroundColor: dark
+          ? "#0f172a"
+          : "#ffffff",
         minHeight: "100vh",
-        color: dark ? "#ffffff" : "#111827",
+        color: dark
+          ? "#ffffff"
+          : "#111827",
         transition: "0.3s",
       }}
     >
       <BrowserRouter>
+
         {/* =====================================
             NAVBAR
         ===================================== */}
@@ -192,11 +244,14 @@ function App() {
             justifyContent: "space-between",
             alignItems: "center",
             padding: "12px 20px",
-            background: dark ? "#1e293b" : "#f1f5f9",
+            background: dark
+              ? "#1e293b"
+              : "#f1f5f9",
             gap: "15px",
             flexWrap: "wrap",
           }}
         >
+
           {/* Logo */}
 
           <h2 style={{ margin: 0 }}>
@@ -216,8 +271,14 @@ function App() {
               flexWrap: "wrap",
             }}
           >
-            <Link to="/" style={styles.link}>
-              {lang === "ar" ? "الرئيسية" : "Home"}
+
+            <Link
+              to="/"
+              style={styles.link}
+            >
+              {lang === "ar"
+                ? "الرئيسية"
+                : "Home"}
             </Link>
 
             <Link
@@ -233,8 +294,24 @@ function App() {
               to="/about"
               style={styles.link}
             >
-              {lang === "ar" ? "حول" : "About"}
+              {lang === "ar"
+                ? "حول"
+                : "About"}
             </Link>
+
+            {/* 📲 INSTALL APP */}
+
+            {installPrompt && (
+              <button
+                onClick={installApp}
+                style={styles.installButton}
+              >
+                📲{" "}
+                {lang === "ar"
+                  ? "تثبيت التطبيق"
+                  : "Install App"}
+              </button>
+            )}
 
             {/* Language */}
 
@@ -242,21 +319,28 @@ function App() {
               style={styles.button}
               onClick={() =>
                 setLang(
-                  lang === "en" ? "ar" : "en"
+                  lang === "en"
+                    ? "ar"
+                    : "en"
                 )
               }
             >
-              {lang === "en" ? "AR" : "EN"}
+              {lang === "en"
+                ? "AR"
+                : "EN"}
             </button>
 
             {/* Dark Mode */}
 
             <button
               style={styles.button}
-              onClick={() => setDark(!dark)}
+              onClick={() =>
+                setDark(!dark)
+              }
             >
               {dark ? "🌞" : "🌙"}
             </button>
+
           </div>
         </nav>
 
@@ -272,7 +356,9 @@ function App() {
               : "100px",
           }}
         >
+
           <Routes>
+
             {/* Home */}
 
             <Route
@@ -284,7 +370,9 @@ function App() {
                   dark={dark}
                   setSurahs={setSurahs}
                   favorites={favorites}
-                  setFavorites={setFavorites}
+                  setFavorites={
+                    setFavorites
+                  }
                 />
               }
             />
@@ -296,7 +384,9 @@ function App() {
               element={
                 <Favorites
                   favorites={favorites}
-                  setFavorites={setFavorites}
+                  setFavorites={
+                    setFavorites
+                  }
                   playSurah={playSurah}
                   dark={dark}
                   lang={lang}
@@ -328,7 +418,9 @@ function App() {
                 />
               }
             />
+
           </Routes>
+
         </div>
 
         {/* =====================================
@@ -347,6 +439,7 @@ function App() {
                 : "1px solid #e2e8f0",
             }}
           >
+
             {/* Hidden / Native Audio */}
 
             <audio
@@ -358,11 +451,10 @@ function App() {
               preload="metadata"
             />
 
-            {/* =================================
-                SURAH INFORMATION
-            ================================= */}
+            {/* SURAH INFORMATION */}
 
             <div style={styles.playerInfo}>
+
               <div style={styles.reciter}>
                 🎙️ Sheikh Al-Zain Muhammad Ahmed
               </div>
@@ -386,17 +478,18 @@ function App() {
                 {currentSurah.id}.{" "}
                 {currentSurah.english_name ||
                   currentSurah.name}
+
                 {currentSurah.ayah_count
                   ? ` • ${currentSurah.ayah_count} Ayahs`
                   : ""}
               </div>
+
             </div>
 
-            {/* =================================
-                CONTROLS
-            ================================= */}
+            {/* CONTROLS */}
 
             <div style={styles.controls}>
+
               {/* Previous */}
 
               <button
@@ -407,8 +500,12 @@ function App() {
                       ? 0.4
                       : 1,
                 }}
-                disabled={currentSurah.id === 1}
-                onClick={handlePreviousSurah}
+                disabled={
+                  currentSurah.id === 1
+                }
+                onClick={
+                  handlePreviousSurah
+                }
                 title="Previous Surah"
               >
                 ⏮️
@@ -420,10 +517,14 @@ function App() {
                 style={styles.playButton}
                 onClick={togglePlay}
                 title={
-                  isPlaying ? "Pause" : "Play"
+                  isPlaying
+                    ? "Pause"
+                    : "Play"
                 }
               >
-                {isPlaying ? "⏸️" : "▶️"}
+                {isPlaying
+                  ? "⏸️"
+                  : "▶️"}
               </button>
 
               {/* Next */}
@@ -436,21 +537,32 @@ function App() {
                       ? 0.4
                       : 1,
                 }}
-                disabled={currentSurah.id === 114}
-                onClick={handleNextSurah}
+                disabled={
+                  currentSurah.id === 114
+                }
+                onClick={
+                  handleNextSurah
+                }
                 title="Next Surah"
               >
                 ⏭️
               </button>
+
             </div>
 
-            {/* =================================
-                VOLUME
-            ================================= */}
+            {/* VOLUME */}
 
-            <div style={styles.volumeContainer}>
-              <span style={{ fontSize: "18px" }}>
-                {volume === 0 ? "🔇" : "🔊"}
+            <div
+              style={styles.volumeContainer}
+            >
+              <span
+                style={{
+                  fontSize: "18px",
+                }}
+              >
+                {volume === 0
+                  ? "🔇"
+                  : "🔊"}
               </span>
 
               <input
@@ -459,12 +571,16 @@ function App() {
                 max="1"
                 step="0.01"
                 value={volume}
-                onChange={handleVolumeChange}
+                onChange={
+                  handleVolumeChange
+                }
                 style={styles.volume}
               />
             </div>
+
           </div>
         )}
+
       </BrowserRouter>
     </div>
   );
@@ -493,6 +609,19 @@ const styles = {
     background: "#22c55e",
     color: "white",
     cursor: "pointer",
+  },
+
+  installButton: {
+    marginLeft: "5px",
+    padding: "8px 14px",
+    borderRadius: "8px",
+    border: "none",
+    background: "#059669",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 700,
+    boxShadow:
+      "0 3px 10px rgba(5,150,105,0.3)",
   },
 
   player: {

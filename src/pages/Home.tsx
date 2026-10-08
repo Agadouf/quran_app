@@ -1,706 +1,1123 @@
-import { useEffect, useMemo, useState } from "react";
-// @ts-ignore
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "../supabase";
-import { motion } from "framer-motion";
+import {
+  downloadSurah,
+  deleteDownloadedSurah,
+  isSurahDownloaded,
+} from "../utils/offlineStorage";
+
+type Surah = {
+  id: number;
+  name: string;
+  english_name?: string;
+  audio_url: string;
+};
+
+type HomeProps = {
+  playSurah: (surah: Surah) => void;
+  favorites: number[];
+  setFavorites: React.Dispatch<React.SetStateAction<number[]>>;
+  lang: string;
+  dark: boolean;
+};
 
 export default function Home({
   playSurah,
-  lang,
-  dark,
-  setSurahs,
   favorites,
   setFavorites,
-}: any) {
-  const [localSurahs, setLocalSurahs] = useState<any[]>([]);
-
+  lang,
+  dark,
+}: HomeProps) {
+  const [surahs, setSurahs] = useState<Surah[]>([]);
+  const [localSurahs, setLocalSurahs] = useState<Surah[]>([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [downloaded, setDownloaded] = useState<
+    Record<number, boolean>
+  >({});
 
-  // 🔎 Search
-  const [search, setSearch] = useState("");
+  const [downloading, setDownloading] = useState<
+    Record<number, boolean>
+  >({});
 
-  // ==========================================
-  // GET ALL SURAHS
-  // ==========================================
+  /* =========================
+     LOAD DOWNLOAD STATUS
+  ========================= */
 
-  useEffect(() => {
-    getSurahs();
-  }, []);
+  async function loadDownloadStatus() {
+    const status: Record<number, boolean> = {};
 
-  async function getSurahs() {
+    for (let i = 1; i <= 114; i++) {
+      status[i] = isSurahDownloaded(i);
+    }
+
+    setDownloaded(status);
+  }
+
+  /* =========================
+     LOAD SURAHS
+  ========================= */
+
+  async function loadSurahs() {
+    setLoading(true);
+
     try {
-      setLoading(true);
-      setErrorMessage("");
-
       const { data, error } = await supabase
         .from("surahs")
         .select("*")
-        .order("id", {
-          ascending: true,
-        });
-
-      console.log(
-        "Supabase Surahs:",
-        data
-      );
-
-      console.log(
-        "Supabase Error:",
-        error
-      );
+        .order("id", { ascending: true });
 
       if (error) {
-        console.error(
-          "Failed to load Surahs:",
-          error
-        );
-
-        setErrorMessage(
-          error.message ||
-            "Failed to load Surahs."
-        );
-
-        setSurahs([]);
-        setLocalSurahs([]);
-
-        return;
+        throw error;
       }
 
-      if (!data || data.length === 0) {
-        setErrorMessage(
-          lang === "ar"
-            ? "لم يتم العثور على السور."
-            : "No Surahs were found."
+      if (data) {
+        setSurahs(data);
+        setLocalSurahs(data);
+
+        // Save Surah list for offline use
+        localStorage.setItem(
+          "quran-surahs-cache",
+          JSON.stringify(data)
         );
-
-        setSurahs([]);
-        setLocalSurahs([]);
-
-        return;
       }
+    } catch (error) {
+      console.error("Failed to load Surahs:", error);
 
-      setSurahs(data);
-      setLocalSurahs(data);
-    } catch (error: any) {
-      console.error(error);
-
-      setErrorMessage(
-        error?.message ||
-          "Unexpected error loading Surahs."
+      // Try offline cached Surah list
+      const cached = localStorage.getItem(
+        "quran-surahs-cache"
       );
 
-      setSurahs([]);
-      setLocalSurahs([]);
+      if (cached) {
+        try {
+          const data = JSON.parse(cached);
+
+          setSurahs(data);
+          setLocalSurahs(data);
+        } catch (cacheError) {
+          console.error(
+            "Failed to read offline Surah cache:",
+            cacheError
+          );
+        }
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  // ==========================================
-  // FAVORITES
-  // ==========================================
+  useEffect(() => {
+    loadSurahs();
+    loadDownloadStatus();
+  }, []);
 
-  const toggleFavorite = (surah: any) => {
-    const exists = favorites.some(
-      (s: any) => s.id === surah.id
-    );
+  /* =========================
+     SEARCH
+  ========================= */
 
-    let updated;
-
-    if (exists) {
-      updated = favorites.filter(
-        (s: any) => s.id !== surah.id
-      );
-    } else {
-      updated = [
-        ...favorites,
-        surah,
-      ];
-    }
-
-    setFavorites(updated);
-
-    localStorage.setItem(
-      "favorites",
-      JSON.stringify(updated)
-    );
-  };
-
-  // ==========================================
-  // SEARCH
-  // ==========================================
-
-  const filteredSurahs = useMemo(() => {
-    const query = search
-      .trim()
-      .toLowerCase();
+  useEffect(() => {
+    const query = search.trim().toLowerCase();
 
     if (!query) {
-      return localSurahs;
+      setLocalSurahs(surahs);
+      return;
     }
 
-    return localSurahs.filter(
-      (surah) => {
-        const id = String(surah.id);
+    const filtered = surahs.filter((surah) => {
+      const id = String(surah.id);
 
-        const arabicName =
-          surah.name
-            ?.toLowerCase() || "";
+      const arabicName =
+        surah.name?.toLowerCase() || "";
 
-        const englishName =
-          surah.english_name
-            ?.toLowerCase() || "";
+      const englishName =
+        surah.english_name?.toLowerCase() || "";
 
-        return (
-          id.includes(query) ||
-          arabicName.includes(query) ||
-          englishName.includes(query)
+      return (
+        id.includes(query) ||
+        arabicName.includes(query) ||
+        englishName.includes(query)
+      );
+    });
+
+    setLocalSurahs(filtered);
+  }, [search, surahs]);
+
+  /* =========================
+     FAVORITES
+  ========================= */
+
+  function toggleFavorite(id: number) {
+    setFavorites((current) => {
+      if (current.includes(id)) {
+        return current.filter(
+          (favoriteId) => favoriteId !== id
         );
       }
-    );
-  }, [search, localSurahs]);
 
-  // ==========================================
-  // UI
-  // ==========================================
+      return [...current, id];
+    });
+  }
+
+  /* =========================
+     DOWNLOAD SURAH
+  ========================= */
+
+  async function handleDownload(surah: Surah) {
+    if (downloading[surah.id]) {
+      return;
+    }
+
+    // If already downloaded → delete it
+    if (downloaded[surah.id]) {
+      try {
+        setDownloading((current) => ({
+          ...current,
+          [surah.id]: true,
+        }));
+
+        await deleteDownloadedSurah(surah);
+
+        setDownloaded((current) => ({
+          ...current,
+          [surah.id]: false,
+        }));
+      } catch (error) {
+        console.error(
+          "Failed to delete Surah:",
+          error
+        );
+
+        alert(
+          lang === "ar"
+            ? "حدث خطأ أثناء حذف السورة."
+            : "Failed to delete the Surah."
+        );
+      } finally {
+        setDownloading((current) => ({
+          ...current,
+          [surah.id]: false,
+        }));
+      }
+
+      return;
+    }
+
+    // Download
+    try {
+      setDownloading((current) => ({
+        ...current,
+        [surah.id]: true,
+      }));
+
+      await downloadSurah(surah);
+
+      setDownloaded((current) => ({
+        ...current,
+        [surah.id]: true,
+      }));
+    } catch (error) {
+      console.error(
+        "Failed to download Surah:",
+        error
+      );
+
+      alert(
+        lang === "ar"
+          ? "تعذر تحميل السورة. تأكد من اتصال الإنترنت."
+          : "Failed to download the Surah. Please check your internet connection."
+      );
+    } finally {
+      setDownloading((current) => ({
+        ...current,
+        [surah.id]: false,
+      }));
+    }
+  }
+
+  /* =========================
+     PLAY SURAH
+  ========================= */
+
+  function handlePlay(surah: Surah) {
+    playSurah(surah);
+  }
+
+  /* =========================
+     LOADING
+  ========================= */
+
+  if (loading) {
+    return (
+      <div
+        className={`home-page ${
+          dark ? "dark-page" : ""
+        }`}
+        dir={lang === "ar" ? "rtl" : "ltr"}
+      >
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+
+          <p>
+            {lang === "ar"
+              ? "جاري تحميل السور..."
+              : "Loading Surahs..."}
+          </p>
+        </div>
+
+        <style>{`
+          .home-page {
+            min-height: 100vh;
+            padding: 40px 20px;
+            background: #ffffff;
+            color: #111827;
+          }
+
+          .dark-page {
+            background: #0f172a;
+            color: #ffffff;
+          }
+
+          .loading-container {
+            min-height: 60vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+          }
+
+          .loading-spinner {
+            width: 42px;
+            height: 42px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #16a34a;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          @keyframes spin {
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  /* =========================
+     PAGE
+  ========================= */
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      style={styles.container}
+    <div
+      className={`home-page ${
+        dark ? "dark-page" : ""
+      }`}
+      dir={lang === "ar" ? "rtl" : "ltr"}
     >
-      {/* =====================================
-          HEADER
-      ===================================== */}
+      <div className="home-container">
 
-      <motion.h1
-        initial={{
-          y: -20,
-          opacity: 0,
-        }}
-        animate={{
-          y: 0,
-          opacity: 1,
-        }}
-        style={styles.title(dark)}
-      >
-        {lang === "ar"
-          ? "سور القرآن الكريم"
-          : "Quran Surahs"}
-      </motion.h1>
+        {/* =========================
+            HEADER
+        ========================= */}
 
-      <p style={styles.subtitle(dark)}>
-        {lang === "ar"
-          ? "استمع إلى القرآن الكريم بصوت الشيخ الزين محمد أحمد"
-          : "Listen to the Holy Quran recited by Sheikh Al-Zain Muhammad Ahmed"}
-      </p>
+        <section className="hero-section">
+          <div className="hero-content">
 
-      {/* =====================================
-          SEARCH
-      ===================================== */}
-
-      <div style={styles.searchContainer}>
-        <span style={styles.searchIcon}>
-          🔎
-        </span>
-
-        <input
-          type="text"
-          value={search}
-          onChange={(e) =>
-            setSearch(e.target.value)
-          }
-          placeholder={
-            lang === "ar"
-              ? "ابحث عن السورة..."
-              : "Search Surah by name or number..."
-          }
-          style={styles.searchInput(dark)}
-          dir={
-            lang === "ar"
-              ? "rtl"
-              : "ltr"
-          }
-        />
-      </div>
-
-      {/* =====================================
-          RESULT COUNT
-      ===================================== */}
-
-      {!loading &&
-        !errorMessage && (
-          <div style={styles.count(dark)}>
-            {filteredSurahs.length} / 114{" "}
-            {lang === "ar"
-              ? "سورة"
-              : "Surahs"}
-          </div>
-        )}
-
-      {/* =====================================
-          LOADING
-      ===================================== */}
-
-      {loading && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          style={styles.loading}
-        >
-          ⏳{" "}
-          {lang === "ar"
-            ? "جاري تحميل السور..."
-            : "Loading Surahs..."}
-        </motion.p>
-      )}
-
-      {/* =====================================
-          ERROR
-      ===================================== */}
-
-      {!loading &&
-        errorMessage && (
-          <div style={styles.error}>
-            <div style={styles.errorIcon}>
-              ⚠️
+            <div className="quran-icon">
+              📖
             </div>
 
-            <h3>
+            <h1>
               {lang === "ar"
-                ? "تعذر تحميل السور"
-                : "Unable to load Surahs"}
-            </h3>
+                ? "القرآن الكريم"
+                : "Holy Quran"}
+            </h1>
 
             <p>
-              {errorMessage}
+              {lang === "ar"
+                ? "استمع إلى القرآن الكريم بصوت الشيخ الزين محمد أحمد"
+                : "Listen to the Holy Quran recited by Sheikh Al-Zain Muhammad Ahmed"}
             </p>
 
-            <button
-              style={styles.retryButton}
-              onClick={getSurahs}
-            >
-              🔄{" "}
-              {lang === "ar"
-                ? "إعادة المحاولة"
-                : "Try Again"}
-            </button>
           </div>
-        )}
+        </section>
 
-      {/* =====================================
-          NO SEARCH RESULTS
-      ===================================== */}
+        {/* =========================
+            OFFLINE NOTICE
+        ========================= */}
 
-      {!loading &&
-        !errorMessage &&
-        filteredSurahs.length === 0 && (
-          <div style={styles.empty(dark)}>
-            <div
-              style={{
-                fontSize: "45px",
-              }}
+        <div className="offline-notice">
+
+          <div className="offline-icon">
+            📥
+          </div>
+
+          <div className="offline-text">
+            <strong>
+              {lang === "ar"
+                ? "استمع بدون إنترنت"
+                : "Listen Offline"}
+            </strong>
+
+            <span>
+              {lang === "ar"
+                ? "حمّل السور التي تريدها واستمع إليها بدون اتصال بالإنترنت."
+                : "Download the Surahs you want and listen to them without an internet connection."}
+            </span>
+          </div>
+
+        </div>
+
+        {/* =========================
+            SEARCH
+        ========================= */}
+
+        <div className="search-container">
+
+          <span className="search-icon">
+            🔎
+          </span>
+
+          <input
+            type="text"
+            value={search}
+            onChange={(event) =>
+              setSearch(event.target.value)
+            }
+            placeholder={
+              lang === "ar"
+                ? "ابحث عن سورة..."
+                : "Search Surah..."
+            }
+          />
+
+          {search && (
+            <button
+              className="clear-search"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
             >
-              🔎
+              ×
+            </button>
+          )}
+
+        </div>
+
+        {/* =========================
+            RESULTS
+        ========================= */}
+
+        <div className="results-info">
+          {lang === "ar"
+            ? `عدد السور: ${localSurahs.length}`
+            : `Surahs: ${localSurahs.length}`}
+        </div>
+
+        {/* =========================
+            EMPTY SEARCH
+        ========================= */}
+
+        {localSurahs.length === 0 && (
+          <div className="empty-state">
+
+            <div className="empty-icon">
+              🔍
             </div>
 
             <h3>
               {lang === "ar"
                 ? "لم يتم العثور على سورة"
-                : "No Surah Found"}
+                : "No Surah found"}
             </h3>
 
             <p>
               {lang === "ar"
                 ? "حاول البحث باسم سورة آخر."
-                : "Try another Surah name or number."}
+                : "Try searching for another Surah."}
             </p>
+
           </div>
         )}
 
-      {/* =====================================
-          SURAHS GRID
-      ===================================== */}
+        {/* =========================
+            SURAHS GRID
+        ========================= */}
 
-      {!loading &&
-        !errorMessage &&
-        filteredSurahs.length > 0 && (
-          <div style={styles.grid}>
-            {filteredSurahs.map(
-              (surah, i) => {
-                const isFavorite =
-                  favorites.some(
-                    (s: any) =>
-                      s.id === surah.id
-                  );
+        <div className="surahs-grid">
 
-                return (
-                  <motion.div
-                    key={surah.id}
-                    style={styles.card(dark)}
-                    initial={{
-                      opacity: 0,
-                      y: 25,
-                    }}
-                    animate={{
-                      opacity: 1,
-                      y: 0,
-                    }}
-                    transition={{
-                      delay:
-                        Math.min(
-                          i * 0.02,
-                          0.5
-                        ),
-                    }}
-                    whileHover={{
-                      y: -5,
-                      boxShadow:
-                        "0px 10px 25px rgba(0,0,0,0.25)",
-                    }}
+          {localSurahs.map((surah) => {
+            const isFavorite =
+              favorites.includes(surah.id);
+
+            const isDownloaded =
+              downloaded[surah.id];
+
+            const isDownloading =
+              downloading[surah.id];
+
+            return (
+              <div
+                className="surah-card"
+                key={surah.id}
+              >
+
+                {/* TOP */}
+
+                <div className="surah-top">
+
+                  <div className="surah-number">
+                    {surah.id}
+                  </div>
+
+                  <button
+                    className={`favorite-button ${
+                      isFavorite
+                        ? "favorite-active"
+                        : ""
+                    }`}
+                    onClick={() =>
+                      toggleFavorite(surah.id)
+                    }
+                    aria-label={
+                      isFavorite
+                        ? "Remove favorite"
+                        : "Add favorite"
+                    }
                   >
-                    {/* Number */}
+                    {isFavorite ? "❤️" : "♡"}
+                  </button>
 
-                    <div
-                      style={styles.number}
-                    >
-                      {surah.id}
-                    </div>
+                </div>
 
-                    {/* Arabic Name */}
+                {/* NAME */}
 
-                    <h2
-                      style={
-                        styles.arabicName
-                      }
-                    >
-                      {surah.name}
-                    </h2>
+                <div className="surah-info">
 
-                    {/* English Name */}
+                  <h2>
+                    {surah.name}
+                  </h2>
 
-                    <div
-                      style={
-                        styles.englishName
-                      }
-                    >
-                      {surah.english_name ||
-                        ""}
-                    </div>
+                  {surah.english_name && (
+                    <p>
+                      {surah.english_name}
+                    </p>
+                  )}
 
-                    {/* Ayah Count */}
+                </div>
 
-                    <div
-                      style={
-                        styles.ayahCount(
-                          dark
-                        )
-                      }
-                    >
-                      📖{" "}
-                      {surah.ayah_count ||
-                        "—"}{" "}
-                      {lang === "ar"
-                        ? "آية"
-                        : "Ayahs"}
-                    </div>
+                {/* BUTTONS */}
 
-                    {/* Reciter */}
+                <div className="surah-actions">
 
-                    <div
-                      style={
-                        styles.reciter
-                      }
-                    >
-                      🎙️ Al-Zain Muhammad
-                      Ahmed
-                    </div>
+                  {/* PLAY */}
 
-                    {/* Buttons */}
+                  <button
+                    className="play-button"
+                    onClick={() =>
+                      handlePlay(surah)
+                    }
+                  >
+                    ▶️{" "}
+                    {lang === "ar"
+                      ? "تشغيل"
+                      : "Play"}
+                  </button>
 
-                    <div
-                      style={
-                        styles.buttons
-                      }
-                    >
-                      {/* Play */}
+                  {/* DOWNLOAD */}
 
-                      <motion.button
-                        style={
-                          styles.playButton
-                        }
-                        whileTap={{
-                          scale: 0.9,
-                        }}
-                        whileHover={{
-                          scale: 1.05,
-                        }}
-                        onClick={() =>
-                          playSurah(
-                            surah
-                          )
-                        }
-                      >
-                        ▶️ Play
-                      </motion.button>
+                  <button
+                    className={`download-button ${
+                      isDownloaded
+                        ? "downloaded"
+                        : ""
+                    }`}
+                    onClick={() =>
+                      handleDownload(surah)
+                    }
+                    disabled={isDownloading}
+                    title={
+                      isDownloaded
+                        ? lang === "ar"
+                          ? "حذف التحميل"
+                          : "Delete download"
+                        : lang === "ar"
+                        ? "تحميل للاستماع بدون إنترنت"
+                        : "Download for offline listening"
+                    }
+                  >
+                    {isDownloading
+                      ? "⏳"
+                      : isDownloaded
+                      ? "✓"
+                      : "⬇️"}
 
-                      {/* Favorite */}
+                    <span>
+                      {isDownloading
+                        ? lang === "ar"
+                          ? "جاري التحميل..."
+                          : "Downloading..."
+                        : isDownloaded
+                        ? lang === "ar"
+                          ? "متاح بدون إنترنت"
+                          : "Available Offline"
+                        : lang === "ar"
+                        ? "تحميل"
+                        : "Download"}
+                    </span>
+                  </button>
 
-                      <motion.button
-                        style={{
-                          ...styles.favoriteButton,
-                          background:
-                            isFavorite
-                              ? "#ef4444"
-                              : "#475569",
-                        }}
-                        whileTap={{
-                          scale: 0.9,
-                        }}
-                        whileHover={{
-                          scale: 1.05,
-                        }}
-                        onClick={() =>
-                          toggleFavorite(
-                            surah
-                          )
-                        }
-                      >
-                        {isFavorite
-                          ? "❤️"
-                          : "🤍"}
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                );
-              }
-            )}
-          </div>
-        )}
-    </motion.div>
+                </div>
+
+                {/* OPEN SURAH */}
+
+                <Link
+                  to={`/surah/${surah.id}`}
+                  className="details-link"
+                >
+                  {lang === "ar"
+                    ? "عرض السورة"
+                    : "View Surah"}
+                  {" →"}
+                </Link>
+
+              </div>
+            );
+          })}
+
+        </div>
+
+      </div>
+
+      {/* =========================
+          STYLES
+      ========================= */}
+
+      <style>{`
+
+        * {
+          box-sizing: border-box;
+        }
+
+        .home-page {
+          min-height: 100vh;
+          background: #f8fafc;
+          color: #111827;
+          padding: 30px 18px 120px;
+          transition: background 0.3s ease,
+                      color 0.3s ease;
+        }
+
+        .dark-page {
+          background: #020617;
+          color: #f8fafc;
+        }
+
+        .home-container {
+          width: 100%;
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        /* HERO */
+
+        .hero-section {
+          padding: 35px 20px;
+          margin-bottom: 25px;
+          border-radius: 24px;
+          background: linear-gradient(
+            135deg,
+            #064e3b,
+            #047857,
+            #059669
+          );
+          color: white;
+          box-shadow:
+            0 15px 40px rgba(
+              0,
+              0,
+              0,
+              0.15
+            );
+        }
+
+        .hero-content {
+          text-align: center;
+        }
+
+        .quran-icon {
+          font-size: 50px;
+          margin-bottom: 10px;
+        }
+
+        .hero-section h1 {
+          margin: 0;
+          font-size: 34px;
+          font-weight: 800;
+        }
+
+        .hero-section p {
+          margin: 12px auto 0;
+          max-width: 700px;
+          font-size: 16px;
+          line-height: 1.7;
+          opacity: 0.95;
+        }
+
+        /* OFFLINE NOTICE */
+
+        .offline-notice {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          padding: 17px 20px;
+          margin-bottom: 25px;
+          border-radius: 16px;
+          background: #ecfdf5;
+          border: 1px solid #a7f3d0;
+          color: #065f46;
+        }
+
+        .dark-page .offline-notice {
+          background: #052e2b;
+          border-color: #065f46;
+          color: #d1fae5;
+        }
+
+        .offline-icon {
+          width: 45px;
+          height: 45px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 12px;
+          background: #d1fae5;
+          font-size: 22px;
+          flex-shrink: 0;
+        }
+
+        .dark-page .offline-icon {
+          background: #064e3b;
+        }
+
+        .offline-text {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .offline-text strong {
+          font-size: 15px;
+        }
+
+        .offline-text span {
+          font-size: 13px;
+          opacity: 0.9;
+        }
+
+        /* SEARCH */
+
+        .search-container {
+          position: relative;
+          display: flex;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .search-icon {
+          position: absolute;
+          left: 17px;
+          font-size: 18px;
+          pointer-events: none;
+        }
+
+        [dir="rtl"] .search-icon {
+          left: auto;
+          right: 17px;
+        }
+
+        .search-container input {
+          width: 100%;
+          height: 54px;
+          padding: 0 50px;
+          border: 1px solid #d1d5db;
+          border-radius: 15px;
+          outline: none;
+          background: white;
+          color: #111827;
+          font-size: 15px;
+          transition: all 0.2s ease;
+        }
+
+        .dark-page .search-container input {
+          background: #0f172a;
+          border-color: #334155;
+          color: white;
+        }
+
+        .search-container input:focus {
+          border-color: #10b981;
+          box-shadow:
+            0 0 0 3px rgba(
+              16,
+              185,
+              129,
+              0.12
+            );
+        }
+
+        .clear-search {
+          position: absolute;
+          right: 12px;
+          width: 32px;
+          height: 32px;
+          border: none;
+          border-radius: 50%;
+          background: #e5e7eb;
+          color: #374151;
+          cursor: pointer;
+          font-size: 20px;
+        }
+
+        [dir="rtl"] .clear-search {
+          right: auto;
+          left: 12px;
+        }
+
+        .dark-page .clear-search {
+          background: #334155;
+          color: white;
+        }
+
+        /* RESULTS */
+
+        .results-info {
+          margin-bottom: 18px;
+          color: #6b7280;
+          font-size: 13px;
+        }
+
+        .dark-page .results-info {
+          color: #94a3b8;
+        }
+
+        /* GRID */
+
+        .surahs-grid {
+          display: grid;
+          grid-template-columns:
+            repeat(
+              auto-fill,
+              minmax(270px, 1fr)
+            );
+          gap: 18px;
+        }
+
+        /* CARD */
+
+        .surah-card {
+          padding: 20px;
+          border-radius: 20px;
+          background: white;
+          border: 1px solid #e5e7eb;
+          box-shadow:
+            0 8px 25px rgba(
+              15,
+              23,
+              42,
+              0.05
+            );
+          transition:
+            transform 0.2s ease,
+            box-shadow 0.2s ease,
+            border-color 0.2s ease;
+        }
+
+        .dark-page .surah-card {
+          background: #0f172a;
+          border-color: #1e293b;
+          box-shadow:
+            0 8px 25px rgba(
+              0,
+              0,
+              0,
+              0.25
+            );
+        }
+
+        .surah-card:hover {
+          transform: translateY(-3px);
+          box-shadow:
+            0 14px 35px rgba(
+              15,
+              23,
+              42,
+              0.1
+            );
+          border-color: #a7f3d0;
+        }
+
+        /* TOP */
+
+        .surah-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 15px;
+        }
+
+        .surah-number {
+          width: 42px;
+          height: 42px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          background: #ecfdf5;
+          color: #047857;
+          font-weight: 800;
+          font-size: 14px;
+        }
+
+        .dark-page .surah-number {
+          background: #064e3b;
+          color: #a7f3d0;
+        }
+
+        .favorite-button {
+          width: 40px;
+          height: 40px;
+          border: none;
+          background: transparent;
+          cursor: pointer;
+          font-size: 25px;
+          color: #9ca3af;
+          transition: transform 0.2s ease;
+        }
+
+        .favorite-button:hover {
+          transform: scale(1.15);
+        }
+
+        .favorite-active {
+          color: #ef4444;
+        }
+
+        /* INFO */
+
+        .surah-info {
+          min-height: 85px;
+        }
+
+        .surah-info h2 {
+          margin: 0;
+          font-size: 27px;
+          font-weight: 800;
+          line-height: 1.5;
+        }
+
+        .surah-info p {
+          margin: 6px 0 0;
+          color: #6b7280;
+          font-size: 13px;
+        }
+
+        .dark-page .surah-info p {
+          color: #94a3b8;
+        }
+
+        /* ACTIONS */
+
+        .surah-actions {
+          display: flex;
+          gap: 9px;
+          margin-top: 12px;
+        }
+
+        .play-button,
+        .download-button {
+          flex: 1;
+          min-height: 43px;
+          border: none;
+          border-radius: 11px;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 700;
+          transition: all 0.2s ease;
+        }
+
+        .play-button {
+          background: #059669;
+          color: white;
+        }
+
+        .play-button:hover {
+          background: #047857;
+          transform: translateY(-1px);
+        }
+
+        .download-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          padding: 8px;
+          background: #f1f5f9;
+          color: #334155;
+          border: 1px solid #e2e8f0;
+        }
+
+        .dark-page .download-button {
+          background: #1e293b;
+          color: #e2e8f0;
+          border-color: #334155;
+        }
+
+        .download-button:hover {
+          background: #e2e8f0;
+        }
+
+        .dark-page
+          .download-button:hover {
+          background: #334155;
+        }
+
+        .download-button.downloaded {
+          background: #dcfce7;
+          color: #166534;
+          border-color: #86efac;
+        }
+
+        .dark-page
+          .download-button.downloaded {
+          background: #14532d;
+          color: #bbf7d0;
+          border-color: #166534;
+        }
+
+        .download-button:disabled {
+          cursor: wait;
+          opacity: 0.7;
+        }
+
+        /* DETAILS */
+
+        .details-link {
+          display: block;
+          margin-top: 14px;
+          text-align: center;
+          color: #059669;
+          text-decoration: none;
+          font-size: 13px;
+          font-weight: 700;
+        }
+
+        .details-link:hover {
+          text-decoration: underline;
+        }
+
+        /* EMPTY */
+
+        .empty-state {
+          padding: 70px 20px;
+          text-align: center;
+        }
+
+        .empty-icon {
+          font-size: 45px;
+          margin-bottom: 15px;
+        }
+
+        .empty-state h3 {
+          margin: 0 0 8px;
+        }
+
+        .empty-state p {
+          margin: 0;
+          color: #6b7280;
+        }
+
+        /* LOADING */
+
+        .loading-container {
+          min-height: 70vh;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 16px;
+        }
+
+        .loading-spinner {
+          width: 45px;
+          height: 45px;
+          border: 4px solid #e5e7eb;
+          border-top-color: #059669;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        /* MOBILE */
+
+        @media (max-width: 600px) {
+
+          .home-page {
+            padding:
+              20px 12px 120px;
+          }
+
+          .hero-section {
+            padding: 28px 15px;
+            border-radius: 18px;
+          }
+
+          .hero-section h1 {
+            font-size: 27px;
+          }
+
+          .hero-section p {
+            font-size: 14px;
+          }
+
+          .offline-notice {
+            align-items: flex-start;
+            padding: 14px;
+          }
+
+          .offline-text span {
+            line-height: 1.6;
+          }
+
+          .surahs-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .surah-card {
+            padding: 17px;
+          }
+
+          .surah-actions {
+            flex-direction: column;
+          }
+
+          .play-button,
+          .download-button {
+            width: 100%;
+          }
+
+        }
+
+      `}</style>
+    </div>
   );
 }
-
-/* =====================================================
-   STYLES
-===================================================== */
-
-const styles = {
-  container: {
-    padding: "20px",
-    maxWidth: "1400px",
-    margin: "0 auto",
-  },
-
-  title: (dark: boolean) => ({
-    textAlign: "center" as const,
-    marginBottom: "8px",
-    color: dark
-      ? "#ffffff"
-      : "#111827",
-    fontSize:
-      "clamp(28px, 5vw, 40px)",
-    fontWeight: "bold",
-  }),
-
-  subtitle: (dark: boolean) => ({
-    textAlign: "center" as const,
-    color: dark
-      ? "#94a3b8"
-      : "#64748b",
-    marginBottom: "25px",
-    fontSize: "15px",
-    lineHeight: 1.6,
-  }),
-
-  searchContainer: {
-    position: "relative" as const,
-    maxWidth: "650px",
-    margin: "0 auto 15px",
-  },
-
-  searchIcon: {
-    position: "absolute" as const,
-    left: "15px",
-    top: "50%",
-    transform:
-      "translateY(-50%)",
-    fontSize: "18px",
-    zIndex: 2,
-  },
-
-  searchInput: (dark: boolean) => ({
-    width: "100%",
-    boxSizing:
-      "border-box" as const,
-    padding:
-      "14px 18px 14px 45px",
-    borderRadius: "14px",
-    border: dark
-      ? "1px solid #334155"
-      : "1px solid #cbd5e1",
-    background: dark
-      ? "#1e293b"
-      : "#ffffff",
-    color: dark
-      ? "#ffffff"
-      : "#111827",
-    fontSize: "16px",
-    outline: "none",
-  }),
-
-  count: (dark: boolean) => ({
-    textAlign: "center" as const,
-    color: dark
-      ? "#94a3b8"
-      : "#64748b",
-    marginBottom: "20px",
-    fontSize: "14px",
-  }),
-
-  loading: {
-    textAlign: "center" as const,
-    fontSize: "18px",
-    marginTop: "30px",
-    color: "#94a3b8",
-  },
-
-  error: {
-    maxWidth: "600px",
-    margin: "40px auto",
-    padding: "30px",
-    textAlign: "center" as const,
-    borderRadius: "16px",
-    background: "#7f1d1d",
-    border:
-      "1px solid #ef4444",
-    color: "#ffffff",
-  },
-
-  errorIcon: {
-    fontSize: "40px",
-    marginBottom: "10px",
-  },
-
-  retryButton: {
-    marginTop: "20px",
-    padding: "10px 18px",
-    border: "none",
-    borderRadius: "10px",
-    background: "#22c55e",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontWeight: "bold",
-    fontSize: "15px",
-  },
-
-  empty: (dark: boolean) => ({
-    maxWidth: "600px",
-    margin: "40px auto",
-    padding: "30px",
-    textAlign: "center" as const,
-    borderRadius: "16px",
-    background: dark
-      ? "#1e293b"
-      : "#f8fafc",
-    color: dark
-      ? "#ffffff"
-      : "#111827",
-  }),
-
-  grid: {
-    display: "grid",
-    gridTemplateColumns:
-      "repeat(auto-fit, minmax(210px, 1fr))",
-    gap: "18px",
-  },
-
-  card: (dark: boolean) => ({
-    background: dark
-      ? "#1e293b"
-      : "#f8fafc",
-    color: dark
-      ? "#e2e8f0"
-      : "#0f172a",
-    padding: "20px",
-    borderRadius: "16px",
-    textAlign: "center" as const,
-    transition: "0.3s",
-    border: dark
-      ? "1px solid #334155"
-      : "1px solid #e2e8f0",
-  }),
-
-  number: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "50%",
-    background: "#22c55e",
-    color: "#ffffff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    margin: "0 auto 12px",
-    fontWeight: "bold",
-  },
-
-  arabicName: {
-    margin: "5px 0",
-    fontSize: "28px",
-    direction: "rtl" as const,
-    fontFamily: "serif",
-  },
-
-  englishName: {
-    fontSize: "15px",
-    fontWeight: 600,
-    opacity: 0.7,
-    marginBottom: "12px",
-  },
-
-  ayahCount: (dark: boolean) => ({
-    color: dark
-      ? "#cbd5e1"
-      : "#475569",
-    fontSize: "14px",
-    marginBottom: "8px",
-  }),
-
-  reciter: {
-    color: "#22c55e",
-    fontSize: "12px",
-    fontWeight: 600,
-    marginBottom: "16px",
-  },
-
-  buttons: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: "8px",
-  },
-
-  playButton: {
-    padding: "10px 15px",
-    borderRadius: "10px",
-    border: "none",
-    background: "#22c55e",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontSize: "15px",
-    fontWeight: 600,
-  },
-
-  favoriteButton: {
-    padding: "10px 13px",
-    borderRadius: "10px",
-    border: "none",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontSize: "16px",
-  },
-};

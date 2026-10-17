@@ -1,3 +1,4 @@
+
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 
@@ -6,47 +7,67 @@ import About from "./pages/About";
 import Surah from "./pages/Surah";
 import Favorites from "./pages/Favorites";
 
+type SurahData = {
+  id: number;
+  name: string;
+  english_name?: string;
+  audio_url: string;
+  ayah_count?: number;
+};
+
+type InstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
 function App() {
-  // 🎧 Current Surah
-  const [currentSurah, setCurrentSurah] = useState<any>(null);
+  // Current Surah
+  const [currentSurah, setCurrentSurah] =
+    useState<SurahData | null>(null);
 
-  // 📚 All Surahs
-  const [surahs, setSurahs] = useState<any[]>([]);
+  // All Surahs, used by the player controls
+  const [surahs, setSurahs] = useState<SurahData[]>([]);
 
-  // ❤️ Favorites
-  const [favorites, setFavorites] = useState<any[]>(() => {
-    const savedFavorites = localStorage.getItem("favorites");
-    return savedFavorites ? JSON.parse(savedFavorites) : [];
+  // Favorites
+  const [favorites, setFavorites] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem("favorites");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
-  // 🌙 Dark mode
+  // Dark mode
   const [dark, setDark] = useState(true);
 
-  // 🌍 Language
+  // Language
   const [lang, setLang] = useState("en");
 
-  // ▶️ Playing
+  // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
-
-  // 🔊 Volume
   const [volume, setVolume] = useState(1);
 
-  // 📲 PWA Install
+  // PWA installation
   const [installPrompt, setInstallPrompt] =
-    useState<any>(null);
+    useState<InstallPromptEvent | null>(null);
 
-  // 🎧 Audio
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // ==========================================
-  // PWA INSTALL PROMPT
-  // ==========================================
+  // Save favorites
+  useEffect(() => {
+    localStorage.setItem("favorites", JSON.stringify(favorites));
+  }, [favorites]);
 
+  // Capture the browser's installation prompt
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
 
-      setInstallPrompt(event);
+    const handleAppInstalled = () => {
+      setInstallPrompt(null);
     };
 
     window.addEventListener(
@@ -54,51 +75,56 @@ function App() {
       handleBeforeInstallPrompt
     );
 
+    window.addEventListener("appinstalled", handleAppInstalled);
+
     return () => {
       window.removeEventListener(
         "beforeinstallprompt",
         handleBeforeInstallPrompt
       );
+      window.removeEventListener(
+        "appinstalled",
+        handleAppInstalled
+      );
     };
   }, []);
 
-  // ==========================================
-  // INSTALL APP
-  // ==========================================
-
+  // Install app
   const installApp = async () => {
-    if (!installPrompt) return;
+    if (!installPrompt) {
+      alert(
+        lang === "ar"
+          ? "لتثبيت التطبيق، افتح قائمة المتصفح واختر إضافة إلى الشاشة الرئيسية أو تثبيت التطبيق."
+          : "To install the app, open your browser menu and choose Install app or Add to Home screen."
+      );
+      return;
+    }
 
-    installPrompt.prompt();
+    try {
+      await installPrompt.prompt();
+      const result = await installPrompt.userChoice;
 
-    const { outcome } =
-      await installPrompt.userChoice;
-
-    if (outcome === "accepted") {
-      setInstallPrompt(null);
+      if (result.outcome === "accepted") {
+        setInstallPrompt(null);
+      }
+    } catch (error) {
+      console.error("Installation prompt failed:", error);
     }
   };
 
-  // ==========================================
-  // PLAY SURAH
-  // ==========================================
-
-  const playSurah = (surah: any) => {
+  // Play Surah
+  const playSurah = (surah: SurahData) => {
     setCurrentSurah(surah);
     setIsPlaying(true);
   };
 
-  // ==========================================
-  // PLAY AFTER CURRENT SURAH CHANGES
-  // ==========================================
-
+  // Play when the current Surah changes
   useEffect(() => {
-    if (!currentSurah || !audioRef.current) return;
-
     const audio = audioRef.current;
 
-    audio.load();
+    if (!currentSurah || !audio) return;
 
+    audio.load();
     audio.volume = volume;
 
     const playAudio = async () => {
@@ -106,30 +132,26 @@ function App() {
         await audio.play();
         setIsPlaying(true);
       } catch (error) {
-        console.error(
-          "Audio playback error:",
-          error
-        );
+        console.error("Audio playback error:", error);
         setIsPlaying(false);
       }
     };
 
-    playAudio();
+    void playAudio();
   }, [currentSurah]);
 
-  // ==========================================
-  // PLAY / PAUSE
-  // ==========================================
-
+  // Play / pause
   const togglePlay = async () => {
-    if (!audioRef.current || !currentSurah) return;
+    const audio = audioRef.current;
+
+    if (!audio || !currentSurah) return;
 
     try {
-      if (audioRef.current.paused) {
-        await audioRef.current.play();
+      if (audio.paused) {
+        await audio.play();
         setIsPlaying(true);
       } else {
-        audioRef.current.pause();
+        audio.pause();
         setIsPlaying(false);
       }
     } catch (error) {
@@ -137,10 +159,7 @@ function App() {
     }
   };
 
-  // ==========================================
-  // NEXT SURAH
-  // ==========================================
-
+  // Next Surah
   const handleNextSurah = () => {
     if (!currentSurah || surahs.length === 0) return;
 
@@ -159,10 +178,7 @@ function App() {
     }
   };
 
-  // ==========================================
-  // PREVIOUS SURAH
-  // ==========================================
-
+  // Previous Surah
   const handlePreviousSurah = () => {
     if (!currentSurah || surahs.length === 0) return;
 
@@ -170,19 +186,12 @@ function App() {
       (surah) => surah.id === currentSurah.id
     );
 
-    if (currentIndex === -1) return;
+    if (currentIndex <= 0) return;
 
-    const previousSurah = surahs[currentIndex - 1];
-
-    if (previousSurah) {
-      setCurrentSurah(previousSurah);
-    }
+    setCurrentSurah(surahs[currentIndex - 1]);
   };
 
-  // ==========================================
-  // VOLUME
-  // ==========================================
-
+  // Volume
   const handleVolumeChange = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -195,25 +204,9 @@ function App() {
     }
   };
 
-  // ==========================================
-  // AUDIO PLAY
-  // ==========================================
-
-  const handleAudioPlay = () => {
-    setIsPlaying(true);
-  };
-
-  // ==========================================
-  // AUDIO PAUSE
-  // ==========================================
-
-  const handleAudioPause = () => {
-    setIsPlaying(false);
-  };
-
-  // ==========================================
-  // AUDIO ENDED
-  // ==========================================
+  // Audio events
+  const handleAudioPlay = () => setIsPlaying(true);
+  const handleAudioPause = () => setIsPlaying(false);
 
   const handleAudioEnded = () => {
     handleNextSurah();
@@ -222,46 +215,28 @@ function App() {
   return (
     <div
       style={{
-        backgroundColor: dark
-          ? "#0f172a"
-          : "#ffffff",
+        backgroundColor: dark ? "#0f172a" : "#ffffff",
         minHeight: "100vh",
-        color: dark
-          ? "#ffffff"
-          : "#111827",
+        color: dark ? "#ffffff" : "#111827",
         transition: "0.3s",
       }}
     >
       <BrowserRouter>
-
-        {/* =====================================
-            NAVBAR
-        ===================================== */}
-
+        {/* Navigation */}
         <nav
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             padding: "12px 20px",
-            background: dark
-              ? "#1e293b"
-              : "#f1f5f9",
+            background: dark ? "#1e293b" : "#f1f5f9",
             gap: "15px",
             flexWrap: "wrap",
           }}
         >
-
-          {/* Logo */}
-
           <h2 style={{ margin: 0 }}>
-            📖{" "}
-            {lang === "ar"
-              ? "القرآن"
-              : "Quran"}
+            📖 {lang === "ar" ? "القرآن" : "Quran"}
           </h2>
-
-          {/* Links */}
 
           <div
             style={{
@@ -271,96 +246,51 @@ function App() {
               flexWrap: "wrap",
             }}
           >
-
-            <Link
-              to="/"
-              style={styles.link}
-            >
-              {lang === "ar"
-                ? "الرئيسية"
-                : "Home"}
+            <Link to="/" style={styles.link}>
+              {lang === "ar" ? "الرئيسية" : "Home"}
             </Link>
 
-            <Link
-              to="/favorites"
-              style={styles.link}
-            >
-              {lang === "ar"
-                ? "المفضلة"
-                : "Favorites"}
+            <Link to="/favorites" style={styles.link}>
+              {lang === "ar" ? "المفضلة" : "Favorites"}
             </Link>
 
-            <Link
-              to="/about"
-              style={styles.link}
-            >
-              {lang === "ar"
-                ? "حول"
-                : "About"}
+            <Link to="/about" style={styles.link}>
+              {lang === "ar" ? "حول" : "About"}
             </Link>
 
-            {/* 📲 INSTALL APP */}
-
-            {installPrompt && (
-              <button
-                onClick={installApp}
-                style={styles.installButton}
-              >
-                📲{" "}
-                {lang === "ar"
-                  ? "تثبيت التطبيق"
-                  : "Install App"}
-              </button>
-            )}
-
-            {/* Language */}
-
+            {/* Always visible installation help/button */}
             <button
-              style={styles.button}
-              onClick={() =>
-                setLang(
-                  lang === "en"
-                    ? "ar"
-                    : "en"
-                )
-              }
+              onClick={installApp}
+              style={styles.installButton}
             >
-              {lang === "en"
-                ? "AR"
-                : "EN"}
+              📲 {lang === "ar" ? "تثبيت التطبيق" : "Install App"}
             </button>
 
-            {/* Dark Mode */}
+            <button
+              style={styles.button}
+              onClick={() => setLang(lang === "en" ? "ar" : "en")}
+            >
+              {lang === "en" ? "AR" : "EN"}
+            </button>
 
             <button
               style={styles.button}
-              onClick={() =>
-                setDark(!dark)
-              }
+              onClick={() => setDark(!dark)}
+              aria-label="Toggle dark mode"
             >
               {dark ? "🌞" : "🌙"}
             </button>
-
           </div>
         </nav>
 
-        {/* =====================================
-            PAGES
-        ===================================== */}
-
+        {/* Pages */}
         <div
           style={{
             padding: "20px",
-            paddingBottom: currentSurah
-              ? "150px"
-              : "100px",
+            paddingBottom: currentSurah ? "150px" : "100px",
           }}
         >
-
           <Routes>
-
-            {/* Home */}
-
             <Route
               path="/"
               element={
@@ -368,25 +298,18 @@ function App() {
                   playSurah={playSurah}
                   lang={lang}
                   dark={dark}
-                  setSurahs={setSurahs}
                   favorites={favorites}
-                  setFavorites={
-                    setFavorites
-                  }
+                  setFavorites={setFavorites}
                 />
               }
             />
-
-            {/* Favorites */}
 
             <Route
               path="/favorites"
               element={
                 <Favorites
                   favorites={favorites}
-                  setFavorites={
-                    setFavorites
-                  }
+                  setFavorites={setFavorites}
                   playSurah={playSurah}
                   dark={dark}
                   lang={lang}
@@ -394,19 +317,10 @@ function App() {
               }
             />
 
-            {/* About */}
-
             <Route
               path="/about"
-              element={
-                <About
-                  lang={lang}
-                  dark={dark}
-                />
-              }
+              element={<About lang={lang} dark={dark} />}
             />
-
-            {/* Surah */}
 
             <Route
               path="/surah/:id"
@@ -418,30 +332,21 @@ function App() {
                 />
               }
             />
-
           </Routes>
-
         </div>
 
-        {/* =====================================
-            CUSTOM GLOBAL PLAYER
-        ===================================== */}
-
+        {/* Global audio player */}
         {currentSurah && (
           <div
             style={{
               ...styles.player,
-              background: dark
-                ? "#1e293b"
-                : "#ffffff",
+              background: dark ? "#1e293b" : "#ffffff",
+              color: dark ? "#ffffff" : "#111827",
               borderTop: dark
                 ? "1px solid #334155"
                 : "1px solid #e2e8f0",
             }}
           >
-
-            {/* Hidden / Native Audio */}
-
             <audio
               ref={audioRef}
               src={currentSurah.audio_url}
@@ -451,10 +356,7 @@ function App() {
               preload="metadata"
             />
 
-            {/* SURAH INFORMATION */}
-
             <div style={styles.playerInfo}>
-
               <div style={styles.reciter}>
                 🎙️ Sheikh Al-Zain Muhammad Ahmed
               </div>
@@ -469,100 +371,52 @@ function App() {
                 {currentSurah.name}
               </div>
 
-              <div
-                style={{
-                  fontSize: "13px",
-                  opacity: 0.7,
-                }}
-              >
+              <div style={{ fontSize: "13px", opacity: 0.7 }}>
                 {currentSurah.id}.{" "}
-                {currentSurah.english_name ||
-                  currentSurah.name}
-
+                {currentSurah.english_name || currentSurah.name}
                 {currentSurah.ayah_count
                   ? ` • ${currentSurah.ayah_count} Ayahs`
                   : ""}
               </div>
-
             </div>
 
-            {/* CONTROLS */}
-
             <div style={styles.controls}>
-
-              {/* Previous */}
-
               <button
                 style={{
                   ...styles.controlButton,
-                  opacity:
-                    currentSurah.id === 1
-                      ? 0.4
-                      : 1,
+                  opacity: currentSurah.id === 1 ? 0.4 : 1,
                 }}
-                disabled={
-                  currentSurah.id === 1
-                }
-                onClick={
-                  handlePreviousSurah
-                }
+                disabled={currentSurah.id === 1}
+                onClick={handlePreviousSurah}
                 title="Previous Surah"
               >
                 ⏮️
               </button>
 
-              {/* Play / Pause */}
-
               <button
                 style={styles.playButton}
                 onClick={togglePlay}
-                title={
-                  isPlaying
-                    ? "Pause"
-                    : "Play"
-                }
+                title={isPlaying ? "Pause" : "Play"}
               >
-                {isPlaying
-                  ? "⏸️"
-                  : "▶️"}
+                {isPlaying ? "⏸️" : "▶️"}
               </button>
-
-              {/* Next */}
 
               <button
                 style={{
                   ...styles.controlButton,
-                  opacity:
-                    currentSurah.id === 114
-                      ? 0.4
-                      : 1,
+                  opacity: currentSurah.id === 114 ? 0.4 : 1,
                 }}
-                disabled={
-                  currentSurah.id === 114
-                }
-                onClick={
-                  handleNextSurah
-                }
+                disabled={currentSurah.id === 114}
+                onClick={handleNextSurah}
                 title="Next Surah"
               >
                 ⏭️
               </button>
-
             </div>
 
-            {/* VOLUME */}
-
-            <div
-              style={styles.volumeContainer}
-            >
-              <span
-                style={{
-                  fontSize: "18px",
-                }}
-              >
-                {volume === 0
-                  ? "🔇"
-                  : "🔊"}
+            <div style={styles.volumeContainer}>
+              <span style={{ fontSize: "18px" }}>
+                {volume === 0 ? "🔇" : "🔊"}
               </span>
 
               <input
@@ -571,26 +425,19 @@ function App() {
                 max="1"
                 step="0.01"
                 value={volume}
-                onChange={
-                  handleVolumeChange
-                }
+                onChange={handleVolumeChange}
                 style={styles.volume}
+                aria-label="Volume"
               />
             </div>
-
           </div>
         )}
-
       </BrowserRouter>
     </div>
   );
 }
 
 export default App;
-
-/* =====================================================
-   STYLES
-===================================================== */
 
 const styles = {
   link: {
@@ -620,8 +467,7 @@ const styles = {
     color: "white",
     cursor: "pointer",
     fontWeight: 700,
-    boxShadow:
-      "0 3px 10px rgba(5,150,105,0.3)",
+    boxShadow: "0 3px 10px rgba(5,150,105,0.3)",
   },
 
   player: {
@@ -637,8 +483,7 @@ const styles = {
     alignItems: "center",
     gap: "20px",
     boxSizing: "border-box" as const,
-    boxShadow:
-      "0 -5px 20px rgba(0,0,0,0.2)",
+    boxShadow: "0 -5px 20px rgba(0,0,0,0.2)",
     flexWrap: "wrap" as const,
   },
 

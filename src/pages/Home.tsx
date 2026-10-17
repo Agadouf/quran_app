@@ -31,14 +31,20 @@ export default function Home({
   dark,
 }: HomeProps) {
   const [surahs, setSurahs] = useState<Surah[]>([]);
-  const [visibleSurahs, setVisibleSurahs] = useState<Surah[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [downloaded, setDownloaded] = useState<Record<number, boolean>>({});
-  const [downloading, setDownloading] = useState<Record<number, boolean>>({});
+
+  const [downloaded, setDownloaded] = useState<
+    Record<number, boolean>
+  >({});
+
+  const [downloading, setDownloading] = useState<
+    Record<number, boolean>
+  >({});
 
   const isArabic = lang === "ar";
 
+  // Load Surahs from Supabase, with offline fallback.
   useEffect(() => {
     let active = true;
 
@@ -53,18 +59,28 @@ export default function Home({
 
         if (data && active) {
           setSurahs(data as Surah[]);
-          localStorage.setItem("quran-surahs-cache", JSON.stringify(data));
+
+          localStorage.setItem(
+            "quran-surahs-cache",
+            JSON.stringify(data)
+          );
         }
       } catch (error) {
         console.error("Failed to load Surahs:", error);
 
         try {
-          const cached = localStorage.getItem("quran-surahs-cache");
+          const cached = localStorage.getItem(
+            "quran-surahs-cache"
+          );
+
           if (cached && active) {
             setSurahs(JSON.parse(cached) as Surah[]);
           }
         } catch (cacheError) {
-          console.error("Failed to read cached Surahs:", cacheError);
+          console.error(
+            "Failed to read cached Surahs:",
+            cacheError
+          );
         }
       } finally {
         if (active) setLoading(false);
@@ -78,6 +94,7 @@ export default function Home({
     };
   }, []);
 
+  // Read downloaded status when the page opens.
   useEffect(() => {
     const status: Record<number, boolean> = {};
 
@@ -88,25 +105,22 @@ export default function Home({
     setDownloaded(status);
   }, []);
 
-  useEffect(() => {
+  // Search by Surah number, Arabic name, or English name.
+  const visibleSurahs = surahs.filter((surah) => {
     const query = search.trim().toLowerCase();
 
-    if (!query) {
-      setVisibleSurahs(surahs);
-      return;
-    }
+    if (!query) return true;
 
-    setVisibleSurahs(
-      surahs.filter((surah) => {
-        return (
-          String(surah.id).includes(query) ||
-          (surah.name || "").toLowerCase().includes(query) ||
-          (surah.english_name || "").toLowerCase().includes(query)
-        );
-      })
+    return (
+      String(surah.id).includes(query) ||
+      (surah.name || "").toLowerCase().includes(query) ||
+      (surah.english_name || "")
+        .toLowerCase()
+        .includes(query)
     );
-  }, [search, surahs]);
+  });
 
+  // Add or remove favorites.
   function toggleFavorite(id: number) {
     setFavorites((current) =>
       current.includes(id)
@@ -115,66 +129,92 @@ export default function Home({
     );
   }
 
+  // Download a Surah only once.
   async function handleDownload(surah: Surah) {
     const id = surah.id;
 
-    // Prevent duplicate clicks while downloading.
     if (downloading[id]) return;
 
-    // Check storage again in case the status changed.
+    // If it already exists offline, do nothing.
     if (isSurahDownloaded(id) || downloaded[id]) {
-      setDownloaded((current) => ({ ...current, [id]: true }));
-
-      alert(
-        isArabic
-          ? `سورة ${surah.name} محمّلة مسبقًا ومتاحة بدون إنترنت ✓`
-          : `${surah.english_name || surah.name} is already downloaded and available offline ✓`
-      );
+      setDownloaded((current) => ({
+        ...current,
+        [id]: true,
+      }));
 
       return;
     }
 
-    setDownloading((current) => ({ ...current, [id]: true }));
+    setDownloading((current) => ({
+      ...current,
+      [id]: true,
+    }));
 
     try {
       await downloadSurah(surah);
 
-      setDownloaded((current) => ({ ...current, [id]: true }));
+      // Confirm that the download was registered.
+      const saved = isSurahDownloaded(id);
 
-      alert(
-        isArabic
-          ? `تم تحميل سورة ${surah.name} بنجاح ✓`
-          : `${surah.english_name || surah.name} downloaded successfully ✓`
-      );
+      if (saved) {
+        setDownloaded((current) => ({
+          ...current,
+          [id]: true,
+        }));
+      } else {
+        throw new Error(
+          "Download finished, but the Surah was not registered as downloaded."
+        );
+      }
     } catch (error) {
       console.error("Failed to download Surah:", error);
 
       alert(
         isArabic
-          ? "تعذّر تحميل السورة. تأكد من اتصال الإنترنت وحاول مرة أخرى."
-          : "Could not download the Surah. Check your internet connection and try again."
+          ? "تعذّر تأكيد تحميل السورة. تأكد من اتصال الإنترنت وحاول مرة أخرى."
+          : "Could not confirm the download. Check your connection and try again."
       );
     } finally {
-      setDownloading((current) => ({ ...current, [id]: false }));
+      setDownloading((current) => ({
+        ...current,
+        [id]: false,
+      }));
     }
   }
 
   if (loading) {
     return (
-      <main className={`home-page ${dark ? "dark-page" : ""}`} dir={isArabic ? "rtl" : "ltr"}>
-        <p className="loading">
-          {isArabic ? "جاري تحميل السور..." : "Loading Surahs..."}
-        </p>
+      <main
+        className={`home-page ${dark ? "dark-page" : ""}`}
+        dir={isArabic ? "rtl" : "ltr"}
+      >
+        <div className="loading">
+          <div className="spinner" />
+          <p>
+            {isArabic
+              ? "جاري تحميل السور..."
+              : "Loading Surahs..."}
+          </p>
+        </div>
+
+        <style>{styles}</style>
       </main>
     );
   }
 
   return (
-    <main className={`home-page ${dark ? "dark-page" : ""}`} dir={isArabic ? "rtl" : "ltr"}>
+    <main
+      className={`home-page ${dark ? "dark-page" : ""}`}
+      dir={isArabic ? "rtl" : "ltr"}
+    >
       <div className="home-container">
         <header className="hero-section">
           <div className="quran-icon">📖</div>
-          <h1>{isArabic ? "القرآن الكريم" : "Holy Quran"}</h1>
+
+          <h1>
+            {isArabic ? "القرآن الكريم" : "Holy Quran"}
+          </h1>
+
           <p>
             {isArabic
               ? "استمع إلى القرآن الكريم بصوت الشيخ الزين محمد أحمد"
@@ -183,24 +223,48 @@ export default function Home({
         </header>
 
         <section className="offline-notice">
-          <strong>📥 {isArabic ? "استمع بدون إنترنت" : "Listen Offline"}</strong>
-          <p>
-            {isArabic
-              ? "حمّل السورة مرة واحدة للاستماع إليها لاحقًا دون إنترنت."
-              : "Download a Surah once to listen offline later."}
-          </p>
+          <div className="offline-icon">📥</div>
+
+          <div>
+            <strong>
+              {isArabic
+                ? "استمع بدون إنترنت"
+                : "Listen Offline"}
+            </strong>
+
+            <p>
+              {isArabic
+                ? "حمّل السورة مرة واحدة للاستماع إليها لاحقًا دون إنترنت."
+                : "Download a Surah once to listen offline later."}
+            </p>
+          </div>
         </section>
 
         <div className="search-container">
           <span>🔎</span>
+
           <input
+            type="search"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={isArabic ? "ابحث عن سورة..." : "Search Surah..."}
-            aria-label={isArabic ? "البحث عن سورة" : "Search Surah"}
+            onChange={(event) =>
+              setSearch(event.target.value)
+            }
+            placeholder={
+              isArabic
+                ? "ابحث عن سورة..."
+                : "Search Surah..."
+            }
+            aria-label={
+              isArabic ? "البحث عن سورة" : "Search Surah"
+            }
           />
+
           {search && (
-            <button onClick={() => setSearch("")} aria-label="Clear search">
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+            >
               ×
             </button>
           )}
@@ -213,9 +277,14 @@ export default function Home({
         </p>
 
         {visibleSurahs.length === 0 ? (
-          <p className="empty-state">
-            {isArabic ? "لم يتم العثور على سورة." : "No Surah found."}
-          </p>
+          <div className="empty-state">
+            <div>🔍</div>
+            <p>
+              {isArabic
+                ? "لم يتم العثور على سورة."
+                : "No Surah found."}
+            </p>
+          </div>
         ) : (
           <div className="surahs-grid">
             {visibleSurahs.map((surah) => {
@@ -224,13 +293,28 @@ export default function Home({
               const isDownloading = !!downloading[surah.id];
 
               return (
-                <article className="surah-card" key={surah.id}>
+                <article
+                  className="surah-card"
+                  key={surah.id}
+                >
                   <div className="surah-top">
-                    <span className="surah-number">{surah.id}</span>
+                    <span className="surah-number">
+                      {surah.id}
+                    </span>
+
                     <button
-                      className={`favorite-button ${isFavorite ? "favorite-active" : ""}`}
-                      onClick={() => toggleFavorite(surah.id)}
-                      aria-label={isFavorite ? "Remove favorite" : "Add favorite"}
+                      type="button"
+                      className={`favorite-button ${
+                        isFavorite ? "favorite-active" : ""
+                      }`}
+                      onClick={() =>
+                        toggleFavorite(surah.id)
+                      }
+                      aria-label={
+                        isFavorite
+                          ? "Remove favorite"
+                          : "Add favorite"
+                      }
                     >
                       {isFavorite ? "❤️" : "♡"}
                     </button>
@@ -238,11 +322,15 @@ export default function Home({
 
                   <div className="surah-info">
                     <h2>{surah.name}</h2>
-                    {surah.english_name && <p>{surah.english_name}</p>}
+
+                    {surah.english_name && (
+                      <p>{surah.english_name}</p>
+                    )}
                   </div>
 
                   <div className="surah-actions">
                     <button
+                      type="button"
                       className="play-button"
                       onClick={() => playSurah(surah)}
                     >
@@ -250,9 +338,16 @@ export default function Home({
                     </button>
 
                     <button
-                      className={`download-button ${isDownloaded ? "downloaded" : ""}`}
-                      onClick={() => handleDownload(surah)}
-                      disabled={isDownloading || isDownloaded}
+                      type="button"
+                      className={`download-button ${
+                        isDownloaded ? "downloaded" : ""
+                      }`}
+                      onClick={() =>
+                        handleDownload(surah)
+                      }
+                      disabled={
+                        isDownloading || isDownloaded
+                      }
                       title={
                         isDownloaded
                           ? isArabic
@@ -268,6 +363,7 @@ export default function Home({
                         : isDownloaded
                           ? "✓"
                           : "⬇️"}{" "}
+
                       {isDownloading
                         ? isArabic
                           ? "جاري التحميل..."
@@ -282,8 +378,14 @@ export default function Home({
                     </button>
                   </div>
 
-                  <Link to={`/surah/${surah.id}`} className="details-link">
-                    {isArabic ? "عرض السورة" : "View Surah"} →
+                  <Link
+                    to={`/surah/${surah.id}`}
+                    className="details-link"
+                  >
+                    {isArabic
+                      ? "عرض السورة"
+                      : "View Surah"}{" "}
+                    →
                   </Link>
                 </article>
               );
@@ -292,214 +394,290 @@ export default function Home({
         )}
       </div>
 
-      <style>{`
-        * { box-sizing: border-box; }
-
-        .home-page {
-          min-height: 100vh;
-          padding: 30px 18px 150px;
-          background: #f8fafc;
-          color: #111827;
-        }
-
-        .dark-page {
-          background: #020617;
-          color: #f8fafc;
-        }
-
-        .home-container {
-          max-width: 1200px;
-          width: 100%;
-          margin: 0 auto;
-        }
-
-        .hero-section {
-          padding: 35px 20px;
-          margin-bottom: 24px;
-          border-radius: 24px;
-          text-align: center;
-          color: white;
-          background: linear-gradient(135deg, #064e3b, #047857, #059669);
-        }
-
-        .quran-icon { font-size: 48px; }
-        .hero-section h1 { font-size: 32px; margin: 8px 0; }
-        .hero-section p { line-height: 1.8; }
-
-        .offline-notice {
-          padding: 16px 20px;
-          margin-bottom: 22px;
-          border: 1px solid #a7f3d0;
-          border-radius: 16px;
-          background: #ecfdf5;
-          color: #065f46;
-        }
-
-        .offline-notice p { margin-bottom: 0; line-height: 1.6; }
-        .dark-page .offline-notice {
-          background: #052e2b;
-          border-color: #065f46;
-          color: #d1fae5;
-        }
-
-        .search-container {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 0 15px;
-          min-height: 54px;
-          border: 1px solid #d1d5db;
-          border-radius: 15px;
-          background: white;
-        }
-
-        .dark-page .search-container {
-          background: #0f172a;
-          border-color: #334155;
-        }
-
-        .search-container input {
-          flex: 1;
-          min-width: 0;
-          padding: 14px 0;
-          border: none;
-          outline: none;
-          background: transparent;
-          color: inherit;
-          font-size: 16px;
-        }
-
-        .search-container button {
-          border: none;
-          background: transparent;
-          color: inherit;
-          font-size: 24px;
-        }
-
-        .results-info { margin: 18px 0; color: #64748b; }
-        .dark-page .results-info { color: #94a3b8; }
-
-        .surahs-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-          gap: 18px;
-        }
-
-        .surah-card {
-          padding: 22px;
-          border: 1px solid #e5e7eb;
-          border-radius: 22px;
-          background: white;
-          box-shadow: 0 8px 25px rgba(15, 23, 42, .05);
-        }
-
-        .dark-page .surah-card {
-          background: #0f172a;
-          border-color: #1e293b;
-        }
-
-        .surah-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .surah-number {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 44px;
-          height: 44px;
-          border-radius: 50%;
-          background: #064e3b;
-          color: #a7f3d0;
-          font-weight: 800;
-        }
-
-        .favorite-button {
-          border: none;
-          background: transparent;
-          color: #94a3b8;
-          font-size: 28px;
-          cursor: pointer;
-        }
-
-        .favorite-active { color: #ef4444; }
-
-        .surah-info {
-          min-height: 100px;
-          padding-top: 18px;
-        }
-
-        .surah-info h2 {
-          margin: 0;
-          font-size: 28px;
-          line-height: 1.5;
-        }
-
-        .surah-info p { color: #64748b; }
-        .dark-page .surah-info p { color: #94a3b8; }
-
-        .surah-actions {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          margin-top: 14px;
-        }
-
-        .play-button, .download-button {
-          width: 100%;
-          min-height: 48px;
-          padding: 12px;
-          border: none;
-          border-radius: 12px;
-          font-size: 15px;
-          font-weight: 700;
-          cursor: pointer;
-        }
-
-        .play-button { background: #059669; color: white; }
-        .play-button:hover { background: #047857; }
-
-        .download-button {
-          background: #e2e8f0;
-          color: #334155;
-        }
-
-        .dark-page .download-button {
-          background: #1e293b;
-          color: #e2e8f0;
-        }
-
-        .download-button.downloaded {
-          background: #14532d;
-          color: #bbf7d0;
-          cursor: default;
-        }
-
-        .download-button:disabled { opacity: .9; }
-
-        .details-link {
-          display: block;
-          margin-top: 18px;
-          text-align: center;
-          text-decoration: none;
-          color: #059669;
-          font-weight: 700;
-        }
-
-        .loading, .empty-state {
-          padding: 60px 15px;
-          text-align: center;
-        }
-
-        @media (max-width: 480px) {
-          .home-page { padding: 18px 12px 150px; }
-          .hero-section { padding: 28px 14px; }
-          .hero-section h1 { font-size: 27px; }
-          .surahs-grid { grid-template-columns: 1fr; }
-        }
-      `}</style>
+      <style>{styles}</style>
     </main>
   );
 }
+
+const styles = `
+  * {
+    box-sizing: border-box;
+  }
+
+  .home-page {
+    min-height: 100vh;
+    padding: 30px 18px 150px;
+    background: #f8fafc;
+    color: #111827;
+    transition: background .2s, color .2s;
+  }
+
+  .dark-page {
+    background: #020617;
+    color: #f8fafc;
+  }
+
+  .home-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .hero-section {
+    padding: 35px 20px;
+    margin-bottom: 24px;
+    border-radius: 24px;
+    text-align: center;
+    color: white;
+    background: linear-gradient(135deg, #064e3b, #047857, #059669);
+    box-shadow: 0 12px 30px #00000018;
+  }
+
+  .quran-icon {
+    font-size: 48px;
+  }
+
+  .hero-section h1 {
+    margin: 8px 0;
+    font-size: 32px;
+  }
+
+  .hero-section p {
+    line-height: 1.8;
+  }
+
+  .offline-notice {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    margin-bottom: 22px;
+    border: 1px solid #a7f3d0;
+    border-radius: 16px;
+    background: #ecfdf5;
+    color: #065f46;
+  }
+
+  .dark-page .offline-notice {
+    background: #052e2b;
+    border-color: #065f46;
+    color: #d1fae5;
+  }
+
+  .offline-icon {
+    font-size: 28px;
+  }
+
+  .offline-notice p {
+    margin-bottom: 0;
+    line-height: 1.6;
+  }
+
+  .search-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 54px;
+    padding: 0 15px;
+    border: 1px solid #d1d5db;
+    border-radius: 15px;
+    background: white;
+  }
+
+  .dark-page .search-container {
+    background: #0f172a;
+    border-color: #334155;
+  }
+
+  .search-container input {
+    flex: 1;
+    min-width: 0;
+    padding: 14px 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font-size: 16px;
+  }
+
+  .search-container button {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 24px;
+    cursor: pointer;
+  }
+
+  .results-info {
+    margin: 18px 0;
+    color: #64748b;
+  }
+
+  .dark-page .results-info {
+    color: #94a3b8;
+  }
+
+  .surahs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    gap: 18px;
+  }
+
+  .surah-card {
+    padding: 22px;
+    border: 1px solid #e5e7eb;
+    border-radius: 22px;
+    background: white;
+    box-shadow: 0 8px 25px #0f172a0d;
+  }
+
+  .dark-page .surah-card {
+    background: #0f172a;
+    border-color: #1e293b;
+  }
+
+  .surah-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .surah-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #064e3b;
+    color: #a7f3d0;
+    font-weight: 800;
+  }
+
+  .favorite-button {
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 28px;
+    cursor: pointer;
+  }
+
+  .favorite-active {
+    color: #ef4444;
+  }
+
+  .surah-info {
+    min-height: 100px;
+    padding-top: 18px;
+  }
+
+  .surah-info h2 {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1.5;
+  }
+
+  .surah-info p {
+    color: #64748b;
+  }
+
+  .dark-page .surah-info p {
+    color: #94a3b8;
+  }
+
+  .surah-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .play-button,
+  .download-button {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .play-button {
+    background: #059669;
+    color: white;
+    cursor: pointer;
+  }
+
+  .play-button:hover {
+    background: #047857;
+  }
+
+  .download-button {
+    background: #e2e8f0;
+    color: #334155;
+    cursor: pointer;
+  }
+
+  .dark-page .download-button {
+    background: #1e293b;
+    color: #e2e8f0;
+  }
+
+  .download-button.downloaded {
+    background: #14532d;
+    color: #bbf7d0;
+    cursor: default;
+  }
+
+  .download-button:disabled {
+    opacity: .95;
+  }
+
+  .details-link {
+    display: block;
+    margin-top: 18px;
+    text-align: center;
+    text-decoration: none;
+    color: #059669;
+    font-weight: 700;
+  }
+
+  .loading,
+  .empty-state {
+    padding: 60px 15px;
+    text-align: center;
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto;
+    border: 4px solid #d1d5db;
+    border-top-color: #059669;
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (max-width: 480px) {
+    .home-page {
+      padding: 18px 12px 150px;
+    }
+
+    .hero-section {
+      padding: 28px 14px;
+    }
+
+    .hero-section h1 {
+      font-size: 27px;
+    }
+
+    .surahs-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+`;

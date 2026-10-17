@@ -139,6 +139,7 @@ function App() {
         "beforeinstallprompt",
         handleBeforeInstallPrompt
       );
+
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, []);
@@ -148,21 +149,31 @@ function App() {
     if (!installPrompt) {
       alert(
         lang === "ar"
-          ? "لتثبيت التطبيق، افتح قائمة المتصفح واختر تثبيت التطبيق أو إضافة إلى الشاشة الرئيسية."
-          : "Open your browser menu and choose Install app or Add to Home screen."
+          ? "افتح قائمة Chrome ⋮ واختر تثبيت التطبيق (Install app). إذا لم يظهر الخيار، افتح الموقع في Google Chrome وتأكد من تحديث الصفحة."
+          : "Open Chrome's ⋮ menu and choose Install app. If the option is missing, open this website in Google Chrome and refresh the page."
       );
       return;
     }
 
     try {
       await installPrompt.prompt();
+
       const result = await installPrompt.userChoice;
 
-      if (result.outcome === "accepted") {
+      if (
+        result.outcome === "accepted" ||
+        result.outcome === "dismissed"
+      ) {
         setInstallPrompt(null);
       }
     } catch (error) {
       console.error("Installation error:", error);
+
+      alert(
+        lang === "ar"
+          ? "تعذر فتح نافذة التثبيت. استخدم قائمة Chrome ⋮ ثم اختر تثبيت التطبيق."
+          : "Could not open the install dialog. Use Chrome's ⋮ menu and choose Install app."
+      );
     }
   };
 

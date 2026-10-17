@@ -6,20 +6,39 @@ import Home from "./pages/Home";
 import About from "./pages/About";
 import Surah from "./pages/Surah";
 import Favorites from "./pages/Favorites";
+import { supabase } from "./supabase";
 
 interface InstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+type SurahItem = {
+  id: number;
+  name: string;
+  english_name?: string;
+  audio_url: string;
+  ayah_count?: number;
+  [key: string]: any;
+};
+
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return "0:00";
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
 function App() {
-  // Current Surah
-  const [currentSurah, setCurrentSurah] = useState<any>(null);
+  const [currentSurah, setCurrentSurah] =
+    useState<SurahItem | null>(null);
 
-  // All Surahs
- const [surahs] = useState<any[]>([]);
+  const [surahs, setSurahs] = useState<SurahItem[]>([]);
 
-  // Favorites
   const [favorites, setFavorites] = useState<any[]>(() => {
     try {
       const savedFavorites = localStorage.getItem("favorites");
@@ -29,28 +48,72 @@ function App() {
     }
   });
 
-  // Dark mode
   const [dark, setDark] = useState(true);
-
-  // Language
   const [lang, setLang] = useState("en");
-
-  // Playback
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
 
-  // PWA installation
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
   const [installPrompt, setInstallPrompt] =
     useState<InstallPromptEvent | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Load all Surahs for Previous, Next, and Auto-play
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSurahs() {
+      try {
+        const { data, error } = await supabase
+          .from("surahs")
+          .select("*")
+          .order("id", { ascending: true });
+
+        if (error) {
+          throw error;
+        }
+
+        if (data && !cancelled) {
+          setSurahs(data as SurahItem[]);
+
+          localStorage.setItem(
+            "quran-surahs-cache",
+            JSON.stringify(data)
+          );
+        }
+      } catch (error) {
+        console.error("Failed to load Surahs:", error);
+
+        try {
+          const cached = localStorage.getItem(
+            "quran-surahs-cache"
+          );
+
+          if (cached && !cancelled) {
+            setSurahs(JSON.parse(cached) as SurahItem[]);
+          }
+        } catch (cacheError) {
+          console.error("Failed to load cached Surahs:", cacheError);
+        }
+      }
+    }
+
+    void loadSurahs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Save favorites
   useEffect(() => {
     localStorage.setItem("favorites", JSON.stringify(favorites));
   }, [favorites]);
 
-  // Listen for the browser installation prompt
+  // Listen for installation prompt
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -73,7 +136,11 @@ function App() {
         "beforeinstallprompt",
         handleBeforeInstallPrompt
       );
-      window.removeEventListener("appinstalled", handleAppInstalled);
+
+      window.removeEventListener(
+        "appinstalled",
+        handleAppInstalled
+      );
     };
   }, []);
 
@@ -100,20 +167,22 @@ function App() {
     }
   };
 
-  // Play a Surah
-  const playSurah = (surah: any) => {
+  // Play a selected Surah
+  const playSurah = (surah: SurahItem) => {
     setCurrentSurah(surah);
+    setCurrentTime(0);
+    setDuration(0);
     setIsPlaying(true);
   };
 
-  // Load and play when the selected Surah changes
+  // Load and play the selected audio
   useEffect(() => {
     const audio = audioRef.current;
 
     if (!currentSurah || !audio) return;
 
-    audio.load();
     audio.volume = volume;
+    audio.load();
 
     const startPlayback = async () => {
       try {
@@ -127,6 +196,13 @@ function App() {
 
     void startPlayback();
   }, [currentSurah]);
+
+  // Keep audio volume synchronized
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
 
   // Play / pause
   const togglePlay = async () => {
@@ -144,25 +220,51 @@ function App() {
       }
     } catch (error) {
       console.error("Playback error:", error);
+      setIsPlaying(false);
     }
+  };
+
+  // Find the current Surah in the full list
+  const getCurrentIndex = () => {
+    if (!currentSurah) return -1;
+
+    return surahs.findIndex(
+      (surah) => Number(surah.id) === Number(currentSurah.id)
+    );
   };
 
   // Next Surah
   const handleNextSurah = () => {
     if (!currentSurah || surahs.length === 0) return;
 
-    const currentIndex = surahs.findIndex(
-      (surah) => surah.id === currentSurah.id
-    );
+    const currentIndex = getCurrentIndex();
 
-    if (currentIndex < 0) return;
+    if (currentIndex < 0) {
+      const nextSurah = surahs.find(
+        (surah) => Number(surah.id) === Number(currentSurah.id) + 1
+      );
+
+      if (nextSurah) {
+        playSurah(nextSurah);
+      }
+
+      return;
+    }
 
     const nextSurah = surahs[currentIndex + 1];
 
     if (nextSurah) {
-      setCurrentSurah(nextSurah);
+      playSurah(nextSurah);
     } else {
+      // Stop after Surah An-Nas
       setIsPlaying(false);
+
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+
+      setCurrentTime(0);
     }
   };
 
@@ -170,40 +272,81 @@ function App() {
   const handlePreviousSurah = () => {
     if (!currentSurah || surahs.length === 0) return;
 
-    const currentIndex = surahs.findIndex(
-      (surah) => surah.id === currentSurah.id
+    const currentIndex = getCurrentIndex();
+
+    if (currentIndex > 0) {
+      playSurah(surahs[currentIndex - 1]);
+      return;
+    }
+
+    // Fallback when the current Surah is not in the list
+    const previousSurah = surahs.find(
+      (surah) => Number(surah.id) === Number(currentSurah.id) - 1
     );
 
-    if (currentIndex <= 0) return;
+    if (previousSurah) {
+      playSurah(previousSurah);
+    }
+  };
 
-    setCurrentSurah(surahs[currentIndex - 1]);
+  // Automatically play the next Surah when audio ends
+  const handleAudioEnded = () => {
+    const currentIndex = getCurrentIndex();
+
+    if (currentIndex >= 0 && currentIndex < surahs.length - 1) {
+      const nextSurah = surahs[currentIndex + 1];
+      playSurah(nextSurah);
+    } else {
+      // End of the playlist
+      setIsPlaying(false);
+      setCurrentTime(0);
+    }
+  };
+
+  // Update playback state
+  const handleAudioPlay = () => setIsPlaying(true);
+  const handleAudioPause = () => setIsPlaying(false);
+
+  const handleLoadedMetadata = () => {
+    const audio = audioRef.current;
+
+    if (audio && Number.isFinite(audio.duration)) {
+      setDuration(audio.duration);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    const audio = audioRef.current;
+
+    if (!audio) return;
+
+    setCurrentTime(audio.currentTime);
+
+    if (Number.isFinite(audio.duration)) {
+      setDuration(audio.duration);
+    }
+  };
+
+  // Seek through the Surah
+  const handleSeek = (event: ChangeEvent<HTMLInputElement>) => {
+    const newTime = Number(event.target.value);
+    const audio = audioRef.current;
+
+    if (!audio || !Number.isFinite(newTime)) return;
+
+    audio.currentTime = newTime;
+    setCurrentTime(newTime);
   };
 
   // Volume
   const handleVolumeChange = (
     event: ChangeEvent<HTMLInputElement>
   ) => {
-    const newVolume = Number(event.target.value);
-
-    setVolume(newVolume);
-
-    if (audioRef.current) {
-      audioRef.current.volume = newVolume;
-    }
+    setVolume(Number(event.target.value));
   };
 
-  // Audio events
-  const handleAudioPlay = () => {
-    setIsPlaying(true);
-  };
-
-  const handleAudioPause = () => {
-    setIsPlaying(false);
-  };
-
-  const handleAudioEnded = () => {
-    handleNextSurah();
-  };
+  const progress =
+    duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
 
   return (
     <div
@@ -251,12 +394,10 @@ function App() {
               {lang === "ar" ? "حول" : "About"}
             </Link>
 
-            {/* Always-visible install button */}
             <button onClick={installApp} style={styles.installButton}>
               📲 {lang === "ar" ? "تثبيت التطبيق" : "Install App"}
             </button>
 
-            {/* Language */}
             <button
               style={styles.button}
               onClick={() => setLang(lang === "en" ? "ar" : "en")}
@@ -264,7 +405,6 @@ function App() {
               {lang === "en" ? "AR" : "EN"}
             </button>
 
-            {/* Dark mode */}
             <button
               style={styles.button}
               onClick={() => setDark(!dark)}
@@ -279,7 +419,7 @@ function App() {
         <div
           style={{
             padding: "20px",
-            paddingBottom: currentSurah ? "150px" : "100px",
+            paddingBottom: currentSurah ? "180px" : "100px",
           }}
         >
           <Routes>
@@ -345,6 +485,8 @@ function App() {
               onPlay={handleAudioPlay}
               onPause={handleAudioPause}
               onEnded={handleAudioEnded}
+              onLoadedMetadata={handleLoadedMetadata}
+              onTimeUpdate={handleTimeUpdate}
               preload="metadata"
             />
 
@@ -373,7 +515,7 @@ function App() {
               </div>
             </div>
 
-            {/* Player controls */}
+            {/* Playback controls */}
             <div style={styles.controls}>
               <button
                 style={{
@@ -383,6 +525,7 @@ function App() {
                 disabled={currentSurah.id === 1}
                 onClick={handlePreviousSurah}
                 title="Previous Surah"
+                aria-label="Previous Surah"
               >
                 ⏮️
               </button>
@@ -391,6 +534,7 @@ function App() {
                 style={styles.playButton}
                 onClick={togglePlay}
                 title={isPlaying ? "Pause" : "Play"}
+                aria-label={isPlaying ? "Pause" : "Play"}
               >
                 {isPlaying ? "⏸️" : "▶️"}
               </button>
@@ -403,6 +547,7 @@ function App() {
                 disabled={currentSurah.id === 114}
                 onClick={handleNextSurah}
                 title="Next Surah"
+                aria-label="Next Surah"
               >
                 ⏭️
               </button>
@@ -423,6 +568,34 @@ function App() {
                 onChange={handleVolumeChange}
                 style={styles.volume}
                 aria-label="Volume"
+              />
+            </div>
+
+            {/* Bottom playback timer and progress */}
+            <div style={styles.progressContainer}>
+              <div style={styles.progressLabels}>
+                <span>{formatTime(currentTime)}</span>
+
+                <span style={styles.nowPlaying}>
+                  {lang === "ar" ? "وقت السورة" : "Surah progress"}
+                </span>
+
+                <span>{formatTime(duration)}</span>
+              </div>
+
+              <input
+                type="range"
+                min="0"
+                max={duration || 0}
+                step="0.1"
+                value={Math.min(currentTime, duration || 0)}
+                onChange={handleSeek}
+                disabled={!duration}
+                style={{
+                  ...styles.progressSlider,
+                  background: `linear-gradient(to right, #22c55e ${progress}%, #475569 ${progress}%)`,
+                }}
+                aria-label="Seek audio"
               />
             </div>
           </div>
@@ -471,20 +644,19 @@ const styles = {
     left: 0,
     right: 0,
     zIndex: 9999,
-    minHeight: "82px",
-    padding: "10px 20px",
+    padding: "10px 16px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: "20px",
+    gap: "12px",
     boxSizing: "border-box" as const,
     boxShadow: "0 -5px 20px rgba(0,0,0,0.2)",
     flexWrap: "wrap" as const,
   },
 
   playerInfo: {
-    flex: 1,
-    minWidth: "220px",
+    flex: "1 1 180px",
+    minWidth: "160px",
   },
 
   reciter: {
@@ -527,11 +699,43 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "8px",
-    minWidth: "140px",
+    minWidth: "120px",
   },
 
   volume: {
-    width: "100px",
+    width: "90px",
     cursor: "pointer",
+  },
+
+  progressContainer: {
+    flex: "1 1 100%",
+    width: "100%",
+    minWidth: 0,
+    marginTop: "2px",
+  },
+
+  progressLabels: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "8px",
+    fontSize: "12px",
+    fontVariantNumeric: "tabular-nums" as const,
+    marginBottom: "5px",
+  },
+
+  nowPlaying: {
+    opacity: 0.75,
+    textAlign: "center" as const,
+  },
+
+  progressSlider: {
+    display: "block",
+    width: "100%",
+    height: "6px",
+    borderRadius: "999px",
+    appearance: "none" as const,
+    cursor: "pointer",
+    accentColor: "#22c55e",
   },
 };

@@ -96,13 +96,7 @@ export default function About({ lang, dark }: any) {
         <p>{text.goalDesc}</p>
       </div>
 
-      {/* ❤️ Support */}
-      <div style={styles.card(dark)}>
-        <h2>{text.supportTitle}</h2>
-        <p>{text.supportDesc}</p>
-
-        <button style={styles.button}>
-          💖 {text.donate}
+      }
         </button>
       </div>
     </div>

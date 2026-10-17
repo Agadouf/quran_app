@@ -23,12 +23,6 @@ export default function About({ lang, dark }: any) {
       goalTitle: "Goal",
       goalDesc:
         "To provide a modern and simple Quran listening experience for everyone.",
-
-      supportTitle: "Support",
-      supportDesc:
-        "If you like this app, you can support us to improve it.",
-
-      donate: "Donate",
     },
 
     ar: {

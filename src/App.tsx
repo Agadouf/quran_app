@@ -1,3 +1,4 @@
+
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
@@ -23,9 +24,7 @@ type SurahItem = {
 };
 
 function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) {
-    return "0:00";
-  }
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
 
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.floor(seconds % 60);
@@ -34,15 +33,13 @@ function formatTime(seconds: number): string {
 }
 
 function App() {
-  const [currentSurah, setCurrentSurah] =
-    useState<SurahItem | null>(null);
-
+  const [currentSurah, setCurrentSurah] = useState<SurahItem | null>(null);
   const [surahs, setSurahs] = useState<SurahItem[]>([]);
 
   const [favorites, setFavorites] = useState<any[]>(() => {
     try {
-      const savedFavorites = localStorage.getItem("favorites");
-      return savedFavorites ? JSON.parse(savedFavorites) : [];
+      const saved = localStorage.getItem("favorites");
+      return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
@@ -52,7 +49,6 @@ function App() {
   const [lang, setLang] = useState("en");
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
-
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -61,7 +57,16 @@ function App() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Load all Surahs for Previous, Next, and Auto-play
+  // Synchronize page background with the selected theme
+  useEffect(() => {
+    const background = dark ? "#0f172a" : "#ffffff";
+
+    document.documentElement.classList.toggle("dark-theme", dark);
+    document.documentElement.style.backgroundColor = background;
+    document.body.style.backgroundColor = background;
+  }, [dark]);
+
+  // Load all Surahs
   useEffect(() => {
     let cancelled = false;
 
@@ -72,9 +77,7 @@ function App() {
           .select("*")
           .order("id", { ascending: true });
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
         if (data && !cancelled) {
           setSurahs(data as SurahItem[]);
@@ -88,9 +91,7 @@ function App() {
         console.error("Failed to load Surahs:", error);
 
         try {
-          const cached = localStorage.getItem(
-            "quran-surahs-cache"
-          );
+          const cached = localStorage.getItem("quran-surahs-cache");
 
           if (cached && !cancelled) {
             setSurahs(JSON.parse(cached) as SurahItem[]);
@@ -113,22 +114,19 @@ function App() {
     localStorage.setItem("favorites", JSON.stringify(favorites));
   }, [favorites]);
 
-  // Listen for installation prompt
+  // PWA installation prompt
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setInstallPrompt(event as InstallPromptEvent);
     };
 
-    const handleAppInstalled = () => {
-      setInstallPrompt(null);
-    };
+    const handleAppInstalled = () => setInstallPrompt(null);
 
     window.addEventListener(
       "beforeinstallprompt",
       handleBeforeInstallPrompt
     );
-
     window.addEventListener("appinstalled", handleAppInstalled);
 
     return () => {
@@ -136,21 +134,16 @@ function App() {
         "beforeinstallprompt",
         handleBeforeInstallPrompt
       );
-
-      window.removeEventListener(
-        "appinstalled",
-        handleAppInstalled
-      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, []);
 
-  // Install app
   const installApp = async () => {
     if (!installPrompt) {
       alert(
         lang === "ar"
           ? "لتثبيت التطبيق، افتح قائمة المتصفح واختر تثبيت التطبيق أو إضافة إلى الشاشة الرئيسية."
-          : "To install the app, open your browser menu and choose Install app or Add to Home screen."
+          : "Open your browser menu and choose Install app or Add to Home screen."
       );
       return;
     }
@@ -175,10 +168,9 @@ function App() {
     setIsPlaying(true);
   };
 
-  // Load and play the selected audio
+  // Load and play when the selected Surah changes
   useEffect(() => {
     const audio = audioRef.current;
-
     if (!currentSurah || !audio) return;
 
     audio.volume = volume;
@@ -197,7 +189,7 @@ function App() {
     void startPlayback();
   }, [currentSurah]);
 
-  // Keep audio volume synchronized
+  // Keep volume synchronized
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume;
@@ -207,7 +199,6 @@ function App() {
   // Play / pause
   const togglePlay = async () => {
     const audio = audioRef.current;
-
     if (!audio || !currentSurah) return;
 
     try {
@@ -224,7 +215,6 @@ function App() {
     }
   };
 
-  // Find the current Surah in the full list
   const getCurrentIndex = () => {
     if (!currentSurah) return -1;
 
@@ -237,26 +227,13 @@ function App() {
   const handleNextSurah = () => {
     if (!currentSurah || surahs.length === 0) return;
 
-    const currentIndex = getCurrentIndex();
-
-    if (currentIndex < 0) {
-      const nextSurah = surahs.find(
-        (surah) => Number(surah.id) === Number(currentSurah.id) + 1
-      );
-
-      if (nextSurah) {
-        playSurah(nextSurah);
-      }
-
-      return;
-    }
-
-    const nextSurah = surahs[currentIndex + 1];
+    const nextSurah = surahs.find(
+      (surah) => Number(surah.id) === Number(currentSurah.id) + 1
+    );
 
     if (nextSurah) {
       playSurah(nextSurah);
     } else {
-      // Stop after Surah An-Nas
       setIsPlaying(false);
 
       if (audioRef.current) {
@@ -272,14 +249,6 @@ function App() {
   const handlePreviousSurah = () => {
     if (!currentSurah || surahs.length === 0) return;
 
-    const currentIndex = getCurrentIndex();
-
-    if (currentIndex > 0) {
-      playSurah(surahs[currentIndex - 1]);
-      return;
-    }
-
-    // Fallback when the current Surah is not in the list
     const previousSurah = surahs.find(
       (surah) => Number(surah.id) === Number(currentSurah.id) - 1
     );
@@ -289,21 +258,18 @@ function App() {
     }
   };
 
-  // Automatically play the next Surah when audio ends
+  // Automatically play next Surah at the end
   const handleAudioEnded = () => {
     const currentIndex = getCurrentIndex();
 
     if (currentIndex >= 0 && currentIndex < surahs.length - 1) {
-      const nextSurah = surahs[currentIndex + 1];
-      playSurah(nextSurah);
+      playSurah(surahs[currentIndex + 1]);
     } else {
-      // End of the playlist
       setIsPlaying(false);
       setCurrentTime(0);
     }
   };
 
-  // Update playback state
   const handleAudioPlay = () => setIsPlaying(true);
   const handleAudioPause = () => setIsPlaying(false);
 
@@ -317,7 +283,6 @@ function App() {
 
   const handleTimeUpdate = () => {
     const audio = audioRef.current;
-
     if (!audio) return;
 
     setCurrentTime(audio.currentTime);
@@ -327,7 +292,6 @@ function App() {
     }
   };
 
-  // Seek through the Surah
   const handleSeek = (event: ChangeEvent<HTMLInputElement>) => {
     const newTime = Number(event.target.value);
     const audio = audioRef.current;
@@ -338,7 +302,6 @@ function App() {
     setCurrentTime(newTime);
   };
 
-  // Volume
   const handleVolumeChange = (
     event: ChangeEvent<HTMLInputElement>
   ) => {
@@ -351,14 +314,15 @@ function App() {
   return (
     <div
       style={{
-        backgroundColor: dark ? "#0f172a" : "#ffffff",
+        width: "100%",
+        maxWidth: "100%",
         minHeight: "100vh",
+        backgroundColor: dark ? "#0f172a" : "#ffffff",
         color: dark ? "#ffffff" : "#111827",
-        transition: "0.3s",
+        transition: "background-color 0.3s, color 0.3s",
       }}
     >
       <BrowserRouter>
-        {/* Navigation */}
         <nav
           style={{
             display: "flex",
@@ -407,7 +371,7 @@ function App() {
 
             <button
               style={styles.button}
-              onClick={() => setDark(!dark)}
+              onClick={() => setDark((value) => !value)}
               aria-label="Toggle dark mode"
             >
               {dark ? "🌞" : "🌙"}
@@ -415,11 +379,11 @@ function App() {
           </div>
         </nav>
 
-        {/* Pages */}
         <div
           style={{
+            width: "100%",
             padding: "20px",
-            paddingBottom: currentSurah ? "180px" : "100px",
+            paddingBottom: currentSurah ? "190px" : "100px",
           }}
         >
           <Routes>
@@ -467,7 +431,6 @@ function App() {
           </Routes>
         </div>
 
-        {/* Global audio player */}
         {currentSurah && (
           <div
             style={{
@@ -490,7 +453,6 @@ function App() {
               preload="metadata"
             />
 
-            {/* Surah information */}
             <div style={styles.playerInfo}>
               <div style={styles.reciter}>
                 🎙️ Sheikh Al-Zain Muhammad Ahmed
@@ -515,14 +477,13 @@ function App() {
               </div>
             </div>
 
-            {/* Playback controls */}
             <div style={styles.controls}>
               <button
                 style={{
                   ...styles.controlButton,
-                  opacity: currentSurah.id === 1 ? 0.4 : 1,
+                  opacity: Number(currentSurah.id) === 1 ? 0.4 : 1,
                 }}
-                disabled={currentSurah.id === 1}
+                disabled={Number(currentSurah.id) === 1}
                 onClick={handlePreviousSurah}
                 title="Previous Surah"
                 aria-label="Previous Surah"
@@ -542,9 +503,9 @@ function App() {
               <button
                 style={{
                   ...styles.controlButton,
-                  opacity: currentSurah.id === 114 ? 0.4 : 1,
+                  opacity: Number(currentSurah.id) === 114 ? 0.4 : 1,
                 }}
-                disabled={currentSurah.id === 114}
+                disabled={Number(currentSurah.id) === 114}
                 onClick={handleNextSurah}
                 title="Next Surah"
                 aria-label="Next Surah"
@@ -553,7 +514,6 @@ function App() {
               </button>
             </div>
 
-            {/* Volume */}
             <div style={styles.volumeContainer}>
               <span style={{ fontSize: "18px" }}>
                 {volume === 0 ? "🔇" : "🔊"}
@@ -571,15 +531,12 @@ function App() {
               />
             </div>
 
-            {/* Bottom playback timer and progress */}
             <div style={styles.progressContainer}>
               <div style={styles.progressLabels}>
                 <span>{formatTime(currentTime)}</span>
-
                 <span style={styles.nowPlaying}>
                   {lang === "ar" ? "وقت السورة" : "Surah progress"}
                 </span>
-
                 <span>{formatTime(duration)}</span>
               </div>
 

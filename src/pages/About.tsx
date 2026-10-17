@@ -1,3 +1,4 @@
+
 export default function About({ lang, dark }: any) {
   const t = {
     en: {
@@ -48,67 +49,52 @@ export default function About({ lang, dark }: any) {
       goalTitle: "الهدف",
       goalDesc:
         "تقديم تجربة حديثة وبسيطة للاستماع إلى القرآن.",
-
-      supportTitle: "الدعم",
-      supportDesc:
-        "إذا أعجبك التطبيق يمكنك دعمه لتطويره.",
-
-      donate: "تبرع",
     },
   };
 
- const text = t[lang as keyof typeof t];
+  const text = t[lang as keyof typeof t] || t.en;
 
   return (
     <div
       dir={lang === "ar" ? "rtl" : "ltr"}
       style={styles.container}
     >
-      {/* 🔥 Header */}
       <h1 style={styles.title}>{text.title}</h1>
       <p style={styles.intro}>{text.intro}</p>
 
-      {/* 🕌 Sheikh */}
       <div style={styles.card(dark)}>
         <h2>{text.sheikhTitle}</h2>
         <p>{text.sheikhDesc}</p>
       </div>
 
-      {/* 📱 App */}
       <div style={styles.card(dark)}>
         <h2>{text.appTitle}</h2>
         <p>{text.appDesc}</p>
       </div>
 
-      {/* 🎧 Features */}
       <div style={styles.card(dark)}>
         <h2>{text.featuresTitle}</h2>
         <ul style={styles.list}>
-          {text.features.map((f: string, i: number) => (
-            <li key={i}>{f}</li>
+          {text.features.map((feature: string, index: number) => (
+            <li key={index}>{feature}</li>
           ))}
         </ul>
       </div>
 
-      {/* 🎯 Goal */}
       <div style={styles.card(dark)}>
         <h2>{text.goalTitle}</h2>
         <p>{text.goalDesc}</p>
-      </div>
-
-      }
-        </button>
       </div>
     </div>
   );
 }
 
-//////////////////////////////////////////////////////
-
 const styles = {
   container: {
+    width: "100%",
     maxWidth: "700px",
-    margin: "auto",
+    boxSizing: "border-box" as const,
+    margin: "0 auto",
     padding: "20px",
   },
 
@@ -132,17 +118,7 @@ const styles = {
   }),
 
   list: {
-    paddingLeft: "20px",
+    paddingInlineStart: "20px",
     lineHeight: "1.8",
-  },
-
-  button: {
-    marginTop: "10px",
-    padding: "8px 14px",
-    borderRadius: "8px",
-    border: "none",
-    background: "#22c55e",
-    color: "white",
-    cursor: "pointer",
   },
 };

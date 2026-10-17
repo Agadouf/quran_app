@@ -90,7 +90,24 @@ function App() {
             JSON.stringify(data)
           );
         }
-      } catch (error) {
+          } catch (error) {
         console.error("Failed to load Surahs:", error);
 
         try {
+          const cached = localStorage.getItem("quran-surahs-cache");
+
+          if (cached && !cancelled) {
+            setSurahs(JSON.parse(cached) as SurahItem[]);
+          }
+        } catch (cacheError) {
+          console.error("Failed to load cached Surahs:", cacheError);
+        }
+      }
+    }
+
+    void loadSurahs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);

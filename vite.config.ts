@@ -1,4 +1,4 @@
-```ts
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -17,10 +17,11 @@ export default defineConfig({
       ],
 
       manifest: {
+        id: '/',
         name: 'Quran App',
         short_name: 'Quran',
         description:
-          'Quran App with offline Quran reading and Al-Zain Muhammad Ahmed recitation',
+          'Listen to Sheikh Al-Zain Muhammad Ahmed reciting the Holy Quran, with offline audio downloads.',
 
         theme_color: '#0f172a',
         background_color: '#ffffff',
@@ -52,23 +53,20 @@ export default defineConfig({
           '**/*.{js,css,html,ico,png,svg,webp,woff2}'
         ],
 
-        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes:
+          10 * 1024 * 1024,
 
         navigateFallback: '/index.html',
 
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/.*\/.*\.(?:mp3|m4a|ogg|wav)$/i,
+            urlPattern:
+              /^https:\/\/.*\.(?:mp3|m4a|ogg|wav)(?:\?.*)?$/i,
 
             handler: 'CacheFirst',
 
             options: {
               cacheName: 'quran-audio',
-
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 * 365
-              },
 
               cacheableResponse: {
                 statuses: [0, 200]
@@ -77,7 +75,6 @@ export default defineConfig({
           }
         ]
       }
-    )
+    })
   ]
 })
-```

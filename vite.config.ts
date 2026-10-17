@@ -13,7 +13,7 @@ export default defineConfig({
       includeAssets: [
         'favicon.ico',
         'icon-192.png',
-        'icon-512.png'
+        'icon-512.png',
       ],
 
       manifest: {
@@ -31,24 +31,26 @@ export default defineConfig({
 
         start_url: '/',
         scope: '/',
-icons: [
-  {
-    src: '/icon-192.png',
-    sizes: '192x192',
-    type: 'image/png',
-    purpose: 'any'
-  },
-  {
-    src: '/icon-512.png',
-    sizes: '512x512',
-    type: 'image/png',
-    purpose: 'any'
-  }
-]
+
+        icons: [
+          {
+            src: '/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+        ],
+      },
 
       workbox: {
         globPatterns: [
-          '**/*.{js,css,html,ico,png,svg,webp,woff2}'
+          '**/*.{js,css,html,ico,png,svg,webp,woff2}',
         ],
 
         maximumFileSizeToCacheInBytes:
@@ -67,12 +69,12 @@ icons: [
               cacheName: 'quran-audio',
 
               cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          }
-        ]
-      }
-    })
-  ]
+                statuses: [0, 200],
+              },
+            },
+          },
+        ],
+      },
+    }),
+  ],
 })

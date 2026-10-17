@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import About from "./pages/About";
 import Surah from "./pages/Surah";
 import Favorites from "./pages/Favorites";
+import SplashScreen from "./components/SplashScreen";
 import { supabase } from "./supabase";
 
 interface InstallPromptEvent extends Event {
@@ -33,6 +34,8 @@ function formatTime(seconds: number): string {
 }
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
   const [currentSurah, setCurrentSurah] = useState<SurahItem | null>(null);
   const [surahs, setSurahs] = useState<SurahItem[]>([]);
 
@@ -312,253 +315,260 @@ function App() {
     duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
 
   return (
-    <div
-      style={{
-        width: "100%",
-        maxWidth: "100%",
-        minHeight: "100vh",
-        backgroundColor: dark ? "#0f172a" : "#ffffff",
-        color: dark ? "#ffffff" : "#111827",
-        transition: "background-color 0.3s, color 0.3s",
-      }}
-    >
-      <BrowserRouter>
-        <nav
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "12px 20px",
-            background: dark ? "#1e293b" : "#f1f5f9",
-            gap: "15px",
-            flexWrap: "wrap",
-          }}
-        >
-          <h2 style={{ margin: 0 }}>
-            📖 {lang === "ar" ? "القرآن" : "Quran"}
-          </h2>
+    <>
+      {showSplash && (
+        <SplashScreen onFinish={() => setShowSplash(false)} />
+      )}
 
-          <div
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "100%",
+          minHeight: "100vh",
+          backgroundColor: dark ? "#0f172a" : "#ffffff",
+          color: dark ? "#ffffff" : "#111827",
+          transition: "background-color 0.3s, color 0.3s",
+        }}
+      >
+        <BrowserRouter>
+          <nav
             style={{
               display: "flex",
+              justifyContent: "space-between",
               alignItems: "center",
-              gap: "5px",
+              padding: "12px 20px",
+              background: dark ? "#1e293b" : "#f1f5f9",
+              gap: "15px",
               flexWrap: "wrap",
             }}
           >
-            <Link to="/" style={styles.link}>
-              {lang === "ar" ? "الرئيسية" : "Home"}
-            </Link>
+            <h2 style={{ margin: 0 }}>
+              📖 {lang === "ar" ? "القرآن" : "Quran"}
+            </h2>
 
-            <Link to="/favorites" style={styles.link}>
-              {lang === "ar" ? "المفضلة" : "Favorites"}
-            </Link>
-
-            <Link to="/about" style={styles.link}>
-              {lang === "ar" ? "حول" : "About"}
-            </Link>
-
-            <button onClick={installApp} style={styles.installButton}>
-              📲 {lang === "ar" ? "تثبيت التطبيق" : "Install App"}
-            </button>
-
-            <button
-              style={styles.button}
-              onClick={() => setLang(lang === "en" ? "ar" : "en")}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
+                flexWrap: "wrap",
+              }}
             >
-              {lang === "en" ? "AR" : "EN"}
-            </button>
+              <Link to="/" style={styles.link}>
+                {lang === "ar" ? "الرئيسية" : "Home"}
+              </Link>
 
-            <button
-              style={styles.button}
-              onClick={() => setDark((value) => !value)}
-              aria-label="Toggle dark mode"
-            >
-              {dark ? "🌞" : "🌙"}
-            </button>
-          </div>
-        </nav>
+              <Link to="/favorites" style={styles.link}>
+                {lang === "ar" ? "المفضلة" : "Favorites"}
+              </Link>
 
-        <div
-          style={{
-            width: "100%",
-            padding: "20px",
-            paddingBottom: currentSurah ? "190px" : "100px",
-          }}
-        >
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <Home
-                  playSurah={playSurah}
-                  lang={lang}
-                  dark={dark}
-                  favorites={favorites}
-                  setFavorites={setFavorites}
-                />
-              }
-            />
+              <Link to="/about" style={styles.link}>
+                {lang === "ar" ? "حول" : "About"}
+              </Link>
 
-            <Route
-              path="/favorites"
-              element={
-                <Favorites
-                  favorites={favorites}
-                  setFavorites={setFavorites}
-                  playSurah={playSurah}
-                  dark={dark}
-                  lang={lang}
-                />
-              }
-            />
+              <button onClick={installApp} style={styles.installButton}>
+                📲 {lang === "ar" ? "تثبيت التطبيق" : "Install App"}
+              </button>
 
-            <Route
-              path="/about"
-              element={<About lang={lang} dark={dark} />}
-            />
+              <button
+                style={styles.button}
+                onClick={() => setLang(lang === "en" ? "ar" : "en")}
+              >
+                {lang === "en" ? "AR" : "EN"}
+              </button>
 
-            <Route
-              path="/surah/:id"
-              element={
-                <Surah
-                  playSurah={playSurah}
-                  lang={lang}
-                  dark={dark}
-                />
-              }
-            />
-          </Routes>
-        </div>
+              <button
+                style={styles.button}
+                onClick={() => setDark((value) => !value)}
+                aria-label="Toggle dark mode"
+              >
+                {dark ? "🌞" : "🌙"}
+              </button>
+            </div>
+          </nav>
 
-        {currentSurah && (
           <div
             style={{
-              ...styles.player,
-              background: dark ? "#1e293b" : "#ffffff",
-              color: dark ? "#ffffff" : "#111827",
-              borderTop: dark
-                ? "1px solid #334155"
-                : "1px solid #e2e8f0",
+              width: "100%",
+              padding: "20px",
+              paddingBottom: currentSurah ? "190px" : "100px",
+              boxSizing: "border-box",
             }}
           >
-            <audio
-              ref={audioRef}
-              src={currentSurah.audio_url}
-              onPlay={handleAudioPlay}
-              onPause={handleAudioPause}
-              onEnded={handleAudioEnded}
-              onLoadedMetadata={handleLoadedMetadata}
-              onTimeUpdate={handleTimeUpdate}
-              preload="metadata"
-            />
-
-            <div style={styles.playerInfo}>
-              <div style={styles.reciter}>
-                🎙️ Sheikh Al-Zain Muhammad Ahmed
-              </div>
-
-              <div
-                style={{
-                  fontSize: "20px",
-                  fontWeight: "bold",
-                  direction: "rtl",
-                }}
-              >
-                {currentSurah.name}
-              </div>
-
-              <div style={{ fontSize: "13px", opacity: 0.7 }}>
-                {currentSurah.id}.{" "}
-                {currentSurah.english_name || currentSurah.name}
-                {currentSurah.ayah_count
-                  ? ` • ${currentSurah.ayah_count} Ayahs`
-                  : ""}
-              </div>
-            </div>
-
-            <div style={styles.controls}>
-              <button
-                style={{
-                  ...styles.controlButton,
-                  opacity: Number(currentSurah.id) === 1 ? 0.4 : 1,
-                }}
-                disabled={Number(currentSurah.id) === 1}
-                onClick={handlePreviousSurah}
-                title="Previous Surah"
-                aria-label="Previous Surah"
-              >
-                ⏮️
-              </button>
-
-              <button
-                style={styles.playButton}
-                onClick={togglePlay}
-                title={isPlaying ? "Pause" : "Play"}
-                aria-label={isPlaying ? "Pause" : "Play"}
-              >
-                {isPlaying ? "⏸️" : "▶️"}
-              </button>
-
-              <button
-                style={{
-                  ...styles.controlButton,
-                  opacity: Number(currentSurah.id) === 114 ? 0.4 : 1,
-                }}
-                disabled={Number(currentSurah.id) === 114}
-                onClick={handleNextSurah}
-                title="Next Surah"
-                aria-label="Next Surah"
-              >
-                ⏭️
-              </button>
-            </div>
-
-            <div style={styles.volumeContainer}>
-              <span style={{ fontSize: "18px" }}>
-                {volume === 0 ? "🔇" : "🔊"}
-              </span>
-
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={volume}
-                onChange={handleVolumeChange}
-                style={styles.volume}
-                aria-label="Volume"
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <Home
+                    playSurah={playSurah}
+                    lang={lang}
+                    dark={dark}
+                    favorites={favorites}
+                    setFavorites={setFavorites}
+                  />
+                }
               />
-            </div>
 
-            <div style={styles.progressContainer}>
-              <div style={styles.progressLabels}>
-                <span>{formatTime(currentTime)}</span>
-                <span style={styles.nowPlaying}>
-                  {lang === "ar" ? "وقت السورة" : "Surah progress"}
-                </span>
-                <span>{formatTime(duration)}</span>
-              </div>
-
-              <input
-                type="range"
-                min="0"
-                max={duration || 0}
-                step="0.1"
-                value={Math.min(currentTime, duration || 0)}
-                onChange={handleSeek}
-                disabled={!duration}
-                style={{
-                  ...styles.progressSlider,
-                  background: `linear-gradient(to right, #22c55e ${progress}%, #475569 ${progress}%)`,
-                }}
-                aria-label="Seek audio"
+              <Route
+                path="/favorites"
+                element={
+                  <Favorites
+                    favorites={favorites}
+                    setFavorites={setFavorites}
+                    playSurah={playSurah}
+                    dark={dark}
+                    lang={lang}
+                  />
+                }
               />
-            </div>
+
+              <Route
+                path="/about"
+                element={<About lang={lang} dark={dark} />}
+              />
+
+              <Route
+                path="/surah/:id"
+                element={
+                  <Surah
+                    playSurah={playSurah}
+                    lang={lang}
+                    dark={dark}
+                  />
+                }
+              />
+            </Routes>
           </div>
-        )}
-      </BrowserRouter>
-    </div>
+
+          {currentSurah && (
+            <div
+              style={{
+                ...styles.player,
+                background: dark ? "#1e293b" : "#ffffff",
+                color: dark ? "#ffffff" : "#111827",
+                borderTop: dark
+                  ? "1px solid #334155"
+                  : "1px solid #e2e8f0",
+              }}
+            >
+              <audio
+                ref={audioRef}
+                src={currentSurah.audio_url}
+                onPlay={handleAudioPlay}
+                onPause={handleAudioPause}
+                onEnded={handleAudioEnded}
+                onLoadedMetadata={handleLoadedMetadata}
+                onTimeUpdate={handleTimeUpdate}
+                preload="metadata"
+              />
+
+              <div style={styles.playerInfo}>
+                <div style={styles.reciter}>
+                  🎙️ Sheikh Al-Zain Muhammad Ahmed
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: "bold",
+                    direction: "rtl",
+                  }}
+                >
+                  {currentSurah.name}
+                </div>
+
+                <div style={{ fontSize: "13px", opacity: 0.7 }}>
+                  {currentSurah.id}.{" "}
+                  {currentSurah.english_name || currentSurah.name}
+                  {currentSurah.ayah_count
+                    ? ` • ${currentSurah.ayah_count} Ayahs`
+                    : ""}
+                </div>
+              </div>
+
+              <div style={styles.controls}>
+                <button
+                  style={{
+                    ...styles.controlButton,
+                    opacity: Number(currentSurah.id) === 1 ? 0.4 : 1,
+                  }}
+                  disabled={Number(currentSurah.id) === 1}
+                  onClick={handlePreviousSurah}
+                  title="Previous Surah"
+                  aria-label="Previous Surah"
+                >
+                  ⏮️
+                </button>
+
+                <button
+                  style={styles.playButton}
+                  onClick={togglePlay}
+                  title={isPlaying ? "Pause" : "Play"}
+                  aria-label={isPlaying ? "Pause" : "Play"}
+                >
+                  {isPlaying ? "⏸️" : "▶️"}
+                </button>
+
+                <button
+                  style={{
+                    ...styles.controlButton,
+                    opacity: Number(currentSurah.id) === 114 ? 0.4 : 1,
+                  }}
+                  disabled={Number(currentSurah.id) === 114}
+                  onClick={handleNextSurah}
+                  title="Next Surah"
+                  aria-label="Next Surah"
+                >
+                  ⏭️
+                </button>
+              </div>
+
+              <div style={styles.volumeContainer}>
+                <span style={{ fontSize: "18px" }}>
+                  {volume === 0 ? "🔇" : "🔊"}
+                </span>
+
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={volume}
+                  onChange={handleVolumeChange}
+                  style={styles.volume}
+                  aria-label="Volume"
+                />
+              </div>
+
+              <div style={styles.progressContainer}>
+                <div style={styles.progressLabels}>
+                  <span>{formatTime(currentTime)}</span>
+                  <span style={styles.nowPlaying}>
+                    {lang === "ar" ? "وقت السورة" : "Surah progress"}
+                  </span>
+                  <span>{formatTime(duration)}</span>
+                </div>
+
+                <input
+                  type="range"
+                  min="0"
+                  max={duration || 0}
+                  step="0.1"
+                  value={Math.min(currentTime, duration || 0)}
+                  onChange={handleSeek}
+                  disabled={!duration}
+                  style={{
+                    ...styles.progressSlider,
+                    background: `linear-gradient(to right, #22c55e ${progress}%, #475569 ${progress}%)`,
+                  }}
+                  aria-label="Seek audio"
+                />
+              </div>
+            </div>
+          )}
+        </BrowserRouter>
+      </div>
+    </>
   );
 }
 

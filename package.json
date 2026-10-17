@@ -1,4 +1,4 @@
-```json
+,json
 {
   "name": "quran-site",
   "private": true,
@@ -33,5 +33,4 @@
     "vite": "^8.0.4",
     "vite-plugin-pwa": "^1.3.0"
   }
-}
-```
+},

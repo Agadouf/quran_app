@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import "./SplashScreen.css";
 
@@ -9,53 +10,78 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
-    const finishTimer = window.setTimeout(() => {
-      setLeaving(true);
-    }, 1600);
-
-    const removeTimer = window.setTimeout(() => {
-      onFinish();
-    }, 2100);
+    const fadeTimer = window.setTimeout(() => setLeaving(true), 2200);
+    const finishTimer = window.setTimeout(onFinish, 2700);
 
     return () => {
+      window.clearTimeout(fadeTimer);
       window.clearTimeout(finishTimer);
-      window.clearTimeout(removeTimer);
     };
   }, [onFinish]);
 
   return (
     <div className={`splash-screen ${leaving ? "splash-leaving" : ""}`}>
-      <div className="splash-decoration splash-decoration-one" />
-      <div className="splash-decoration splash-decoration-two" />
+      <div className="islamic-pattern" />
 
-      <div className="splash-content">
-        <div className="splash-icon-wrapper">
-          <img
-            src="/icon-512.png"
-            alt="Quran App"
-            className="splash-icon"
-          />
+      <div className="splash-arch">
+        <div className="splash-stars">✦　·　✧　·　✦</div>
+
+        <div className="splash-moon">☪</div>
+
+        <div className="splash-lanterns">
+          <div className="lantern lantern-left">
+            <span>✧</span>
+          </div>
+          <div className="lantern lantern-right">
+            <span>✧</span>
+          </div>
         </div>
 
-        <h1 className="splash-title">Quran App</h1>
+        <div className="splash-mosque">
+          <div className="mosque-dome">◈</div>
+          <div className="mosque-building">
+            <span>▯</span>
+            <span>▯</span>
+            <span>▯</span>
+            <span>▯</span>
+            <span>▯</span>
+          </div>
+          <div className="mosque-minaret minaret-left">◆</div>
+          <div className="mosque-minaret minaret-right">◆</div>
+        </div>
+
+        <div className="splash-quran">
+          <div className="quran-cover">
+            <div className="quran-border">
+              <div className="quran-emblem">۞</div>
+              <div className="quran-arabic">القرآن</div>
+              <div className="quran-small">الْكَرِيم</div>
+            </div>
+          </div>
+          <div className="quran-stand" />
+        </div>
+
+        <div className="splash-title">Quran App</div>
 
         <div className="splash-divider">
           <span />
-          <span className="splash-star">✦</span>
+          <b>✦</b>
           <span />
         </div>
 
-        <p className="splash-subtitle">القرآن الكريم</p>
+        <div className="splash-arabic-title">القرآن الكريم</div>
 
-        <p className="splash-reciter">
-          Sheikh Al-Zain Muhammad Ahmed
-        </p>
+        <div className="splash-reciter">
+          بصوت الشيخ الزين محمد أحمد
+        </div>
 
         <div className="splash-loading">
           <span />
           <span />
           <span />
         </div>
+
+        <div className="splash-loading-text">بسم الله</div>
       </div>
     </div>
   );

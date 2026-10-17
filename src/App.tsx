@@ -1,38 +1,29 @@
-
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 
 import Home from "./pages/Home";
 import About from "./pages/About";
 import Surah from "./pages/Surah";
 import Favorites from "./pages/Favorites";
 
-type SurahData = {
-  id: number;
-  name: string;
-  english_name?: string;
-  audio_url: string;
-  ayah_count?: number;
-};
-
-type InstallPromptEvent extends Event {
+interface InstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
 function App() {
   // Current Surah
-  const [currentSurah, setCurrentSurah] =
-    useState<SurahData | null>(null);
+  const [currentSurah, setCurrentSurah] = useState<any>(null);
 
-  // All Surahs, used by the player controls
-  const [surahs, setSurahs] = useState<SurahData[]>([]);
+  // All Surahs
+  const [surahs, setSurahs] = useState<any[]>([]);
 
   // Favorites
-  const [favorites, setFavorites] = useState<number[]>(() => {
+  const [favorites, setFavorites] = useState<any[]>(() => {
     try {
-      const saved = localStorage.getItem("favorites");
-      return saved ? JSON.parse(saved) : [];
+      const savedFavorites = localStorage.getItem("favorites");
+      return savedFavorites ? JSON.parse(savedFavorites) : [];
     } catch {
       return [];
     }
@@ -44,7 +35,7 @@ function App() {
   // Language
   const [lang, setLang] = useState("en");
 
-  // Playback state
+  // Playback
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
 
@@ -59,7 +50,7 @@ function App() {
     localStorage.setItem("favorites", JSON.stringify(favorites));
   }, [favorites]);
 
-  // Capture the browser's installation prompt
+  // Listen for the browser installation prompt
   useEffect(() => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -82,10 +73,7 @@ function App() {
         "beforeinstallprompt",
         handleBeforeInstallPrompt
       );
-      window.removeEventListener(
-        "appinstalled",
-        handleAppInstalled
-      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, []);
 
@@ -94,7 +82,7 @@ function App() {
     if (!installPrompt) {
       alert(
         lang === "ar"
-          ? "لتثبيت التطبيق، افتح قائمة المتصفح واختر إضافة إلى الشاشة الرئيسية أو تثبيت التطبيق."
+          ? "لتثبيت التطبيق، افتح قائمة المتصفح واختر تثبيت التطبيق أو إضافة إلى الشاشة الرئيسية."
           : "To install the app, open your browser menu and choose Install app or Add to Home screen."
       );
       return;
@@ -108,17 +96,17 @@ function App() {
         setInstallPrompt(null);
       }
     } catch (error) {
-      console.error("Installation prompt failed:", error);
+      console.error("Installation error:", error);
     }
   };
 
-  // Play Surah
-  const playSurah = (surah: SurahData) => {
+  // Play a Surah
+  const playSurah = (surah: any) => {
     setCurrentSurah(surah);
     setIsPlaying(true);
   };
 
-  // Play when the current Surah changes
+  // Load and play when the selected Surah changes
   useEffect(() => {
     const audio = audioRef.current;
 
@@ -127,7 +115,7 @@ function App() {
     audio.load();
     audio.volume = volume;
 
-    const playAudio = async () => {
+    const startPlayback = async () => {
       try {
         await audio.play();
         setIsPlaying(true);
@@ -137,7 +125,7 @@ function App() {
       }
     };
 
-    void playAudio();
+    void startPlayback();
   }, [currentSurah]);
 
   // Play / pause
@@ -155,7 +143,7 @@ function App() {
         setIsPlaying(false);
       }
     } catch (error) {
-      console.error("Play error:", error);
+      console.error("Playback error:", error);
     }
   };
 
@@ -167,7 +155,7 @@ function App() {
       (surah) => surah.id === currentSurah.id
     );
 
-    if (currentIndex === -1) return;
+    if (currentIndex < 0) return;
 
     const nextSurah = surahs[currentIndex + 1];
 
@@ -193,7 +181,7 @@ function App() {
 
   // Volume
   const handleVolumeChange = (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: ChangeEvent<HTMLInputElement>
   ) => {
     const newVolume = Number(event.target.value);
 
@@ -205,8 +193,13 @@ function App() {
   };
 
   // Audio events
-  const handleAudioPlay = () => setIsPlaying(true);
-  const handleAudioPause = () => setIsPlaying(false);
+  const handleAudioPlay = () => {
+    setIsPlaying(true);
+  };
+
+  const handleAudioPause = () => {
+    setIsPlaying(false);
+  };
 
   const handleAudioEnded = () => {
     handleNextSurah();
@@ -258,14 +251,12 @@ function App() {
               {lang === "ar" ? "حول" : "About"}
             </Link>
 
-            {/* Always visible installation help/button */}
-            <button
-              onClick={installApp}
-              style={styles.installButton}
-            >
+            {/* Always-visible install button */}
+            <button onClick={installApp} style={styles.installButton}>
               📲 {lang === "ar" ? "تثبيت التطبيق" : "Install App"}
             </button>
 
+            {/* Language */}
             <button
               style={styles.button}
               onClick={() => setLang(lang === "en" ? "ar" : "en")}
@@ -273,6 +264,7 @@ function App() {
               {lang === "en" ? "AR" : "EN"}
             </button>
 
+            {/* Dark mode */}
             <button
               style={styles.button}
               onClick={() => setDark(!dark)}
@@ -356,6 +348,7 @@ function App() {
               preload="metadata"
             />
 
+            {/* Surah information */}
             <div style={styles.playerInfo}>
               <div style={styles.reciter}>
                 🎙️ Sheikh Al-Zain Muhammad Ahmed
@@ -380,6 +373,7 @@ function App() {
               </div>
             </div>
 
+            {/* Player controls */}
             <div style={styles.controls}>
               <button
                 style={{
@@ -414,6 +408,7 @@ function App() {
               </button>
             </div>
 
+            {/* Volume */}
             <div style={styles.volumeContainer}>
               <span style={{ fontSize: "18px" }}>
                 {volume === 0 ? "🔇" : "🔊"}

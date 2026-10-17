@@ -1,7 +1,7 @@
 
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   plugins: [
@@ -24,7 +24,7 @@ export default defineConfig({
           'Listen to Sheikh Al-Zain Muhammad Ahmed reciting the Holy Quran, with offline audio downloads.',
 
         theme_color: '#0f172a',
-        background_color: '#ffffff',
+        background_color: '#0f172a',
 
         display: 'standalone',
         orientation: 'portrait',
@@ -77,4 +77,4 @@ export default defineConfig({
       },
     }),
   ],
-})
+});

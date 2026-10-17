@@ -17,7 +17,7 @@ function App() {
   const [currentSurah, setCurrentSurah] = useState<any>(null);
 
   // All Surahs
-  const [surahs, setSurahs] = useState<any[]>([]);
+ const [surahs] = useState<any[]>([]);
 
   // Favorites
   const [favorites, setFavorites] = useState<any[]>(() => {

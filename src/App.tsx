@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import About from "./pages/About";
 import Surah from "./pages/Surah";
 import Favorites from "./pages/Favorites";
+import Contact from "./pages/Contact";
 import SplashScreen from "./components/SplashScreen";
 import { supabase } from "./supabase";
 
@@ -149,31 +150,21 @@ function App() {
     if (!installPrompt) {
       alert(
         lang === "ar"
-          ? "افتح قائمة Chrome ⋮ واختر تثبيت التطبيق (Install app). إذا لم يظهر الخيار، افتح الموقع في Google Chrome وتأكد من تحديث الصفحة."
-          : "Open Chrome's ⋮ menu and choose Install app. If the option is missing, open this website in Google Chrome and refresh the page."
+          ? "افتح قائمة Chrome ⋮ واختر تثبيت التطبيق (Install app)."
+          : "Open Chrome's ⋮ menu and choose Install app."
       );
       return;
     }
 
     try {
       await installPrompt.prompt();
-
       const result = await installPrompt.userChoice;
 
-      if (
-        result.outcome === "accepted" ||
-        result.outcome === "dismissed"
-      ) {
+      if (result.outcome === "accepted") {
         setInstallPrompt(null);
       }
     } catch (error) {
       console.error("Installation error:", error);
-
-      alert(
-        lang === "ar"
-          ? "تعذر فتح نافذة التثبيت. استخدم قائمة Chrome ⋮ ثم اختر تثبيت التطبيق."
-          : "Could not open the install dialog. Use Chrome's ⋮ menu and choose Install app."
-      );
     }
   };
 
@@ -380,6 +371,10 @@ function App() {
                 {lang === "ar" ? "حول" : "About"}
               </Link>
 
+              <Link to="/contact" style={styles.link}>
+                {lang === "ar" ? "تواصل معنا" : "Contact Us"}
+              </Link>
+
               <button onClick={installApp} style={styles.installButton}>
                 📲 {lang === "ar" ? "تثبيت التطبيق" : "Install App"}
               </button>
@@ -439,6 +434,11 @@ function App() {
               <Route
                 path="/about"
                 element={<About lang={lang} dark={dark} />}
+              />
+
+              <Route
+                path="/contact"
+                element={<Contact lang={lang} dark={dark} />}
               />
 
               <Route
